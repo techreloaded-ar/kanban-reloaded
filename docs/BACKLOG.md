@@ -381,9 +381,11 @@ I want che l'agent possa aggiornare lo stato di un task (completarlo, aggiungere
 so that il backlog rifletta automaticamente i progressi dell'agent senza intervento manuale.
 
 **Acceptance Criteria**
-- [ ] L'API espone un endpoint `PATCH /api/tasks/:id` che accetta aggiornamenti di stato (es. spostare a "Done"), note aggiuntive e criteri di accettazione completati
-- [ ] L'aggiornamento via API genera un evento WebSocket che aggiorna la dashboard in tempo reale
-- [ ] Se il task ID non esiste o il payload e invalido, l'API restituisce un codice di errore appropriato (404 o 400) con un messaggio JSON descrittivo
+- [x] L'API espone un endpoint `PATCH /api/tasks/:id` che accetta aggiornamenti di stato (es. spostare a "Done"), note aggiuntive e criteri di accettazione completati
+- [x] L'aggiornamento via API genera un evento WebSocket che aggiorna la dashboard in tempo reale
+- [x] Se il task ID non esiste o il payload e invalido, l'API restituisce un codice di errore appropriato (404 o 400) con un messaggio JSON descrittivo
+
+**Status: DONE**
 
 ---
 

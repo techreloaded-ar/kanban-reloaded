@@ -29,6 +29,9 @@ interface UpdateTaskRequestBody {
   priority?: string;
   status?: string;
   position?: number;
+  agentLog?: string | null;
+  agentRunning?: boolean;
+  executionTime?: number | null;
 }
 
 interface ReorderTasksRequestBody {
@@ -164,10 +167,13 @@ export function registerTaskRoutes(
       const hasPriority = body.priority !== undefined;
       const hasStatus = body.status !== undefined;
       const hasPosition = body.position !== undefined;
+      const hasAgentLog = body.agentLog !== undefined;
+      const hasAgentRunning = body.agentRunning !== undefined;
+      const hasExecutionTime = body.executionTime !== undefined;
 
-      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus && !hasPosition) {
+      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus && !hasPosition && !hasAgentLog && !hasAgentRunning && !hasExecutionTime) {
         return reply.status(400).send({
-          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status, position',
+          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status, position, agentLog, agentRunning, executionTime',
         });
       }
 
@@ -189,13 +195,16 @@ export function registerTaskRoutes(
         });
       }
 
-      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus; position?: number } = {};
+      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus; position?: number; agentLog?: string | null; agentRunning?: boolean; executionTime?: number | null } = {};
       if (hasTitle) updateFields.title = body.title!;
       if (hasDescription) updateFields.description = body.description!;
       if (hasAcceptanceCriteria) updateFields.acceptanceCriteria = body.acceptanceCriteria!;
       if (hasPriority) updateFields.priority = body.priority! as TaskPriority;
       if (hasStatus) updateFields.status = body.status! as TaskStatus;
       if (hasPosition) updateFields.position = body.position!;
+      if (hasAgentLog) updateFields.agentLog = body.agentLog!;
+      if (hasAgentRunning) updateFields.agentRunning = body.agentRunning!;
+      if (hasExecutionTime) updateFields.executionTime = body.executionTime!;
 
       try {
         // Recupera il task prima dell'aggiornamento per verificare se lo status e cambiato

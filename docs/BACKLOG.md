@@ -337,7 +337,7 @@ so that la dashboard abbia un aspetto curato e coerente con il design system def
 
 ---
 
-#### US-012: Lancio automatico dell'agent su spostamento in "In Progress"
+#### US-012: Lancio automatico dell'agent su spostamento in "In Progress" — DONE
 
 **Epic:** EP-004 | **Priority:** HIGH | **Story Points:** 5
 
@@ -347,9 +347,9 @@ I want che un agent AI venga lanciato automaticamente quando sposto un task nell
 so that posso delegare lo sviluppo all'agent con un semplice gesto di drag-and-drop senza dover aprire un terminale e digitare comandi.
 
 **Acceptance Criteria**
-- [ ] Quando un task viene spostato nella colonna "In Progress" (via drag-and-drop o via API/CLI), il sistema esegue il comando agent configurato in `config.json` come processo figlio, passando il contesto del task
-- [ ] Se nessun agent e configurato nel `config.json`, il task viene spostato in "In Progress" ma nessun processo viene lanciato, e un avviso viene mostrato nella dashboard
-- [ ] Se il lancio del processo agent fallisce (comando non trovato, errore di esecuzione), il task rimane in "In Progress" e un messaggio di errore specifico viene mostrato nella dashboard
+- [x] Quando un task viene spostato nella colonna "In Progress" (via drag-and-drop o via API/CLI), il sistema esegue il comando agent configurato in `config.json` come processo figlio, passando il contesto del task
+- [x] Se nessun agent e configurato nel `config.json`, il task viene spostato in "In Progress" ma nessun processo viene lanciato, e un avviso viene mostrato nella dashboard
+- [x] Se il lancio del processo agent fallisce (comando non trovato, errore di esecuzione), il task rimane in "In Progress" e un messaggio di errore specifico viene mostrato nella dashboard
 
 ---
 

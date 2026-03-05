@@ -14,11 +14,64 @@ export type TaskWebSocketEventType =
   | 'task:reordered';
 
 /**
+ * Tipi di eventi WebSocket per il ciclo di vita degli agent AI.
+ */
+export type AgentWebSocketEventType =
+  | 'agent:started'
+  | 'agent:output'
+  | 'agent:completed';
+
+/**
+ * Payload per l'evento agent:started — un agent e stato avviato per un task.
+ */
+export interface AgentStartedPayload {
+  taskId: string;
+  displayId: string;
+  processId: number;
+}
+
+/**
+ * Payload per l'evento agent:output — un chunk di output dall'agent.
+ */
+export interface AgentOutputPayload {
+  taskId: string;
+  displayId: string;
+  output: string;
+}
+
+/**
+ * Payload per l'evento agent:completed — il processo agent e terminato.
+ */
+export interface AgentCompletedPayload {
+  taskId: string;
+  displayId: string;
+  exitCode: number;
+  success: boolean;
+  errorMessage?: string;
+}
+
+/**
  * Payload specifico per ogni tipo di evento WebSocket.
  *
  * - task:created / task:updated: il task completo
  * - task:deleted: oggetto con l'id del task rimosso
  * - task:reordered: array di task riordinati
+ * - agent:started: un agent e stato avviato
+ * - agent:output: chunk di output dall'agent
+ * - agent:completed: il processo agent e terminato
+ */
+export type WebSocketEventPayload =
+  | { type: 'task:created'; payload: Task }
+  | { type: 'task:updated'; payload: Task }
+  | { type: 'task:deleted'; payload: { id: string } }
+  | { type: 'task:reordered'; payload: Task[] }
+  | { type: 'agent:started'; payload: AgentStartedPayload }
+  | { type: 'agent:output'; payload: AgentOutputPayload }
+  | { type: 'agent:completed'; payload: AgentCompletedPayload };
+
+/**
+ * Alias per retrocompatibilita — i tipi di eventi task originali.
+ * @deprecated Usare WebSocketEventPayload che include anche gli eventi agent.
  */
 export type TaskWebSocketEventPayload =
   | { type: 'task:created'; payload: Task }
@@ -30,7 +83,7 @@ export type TaskWebSocketEventPayload =
  * Messaggio WebSocket completo inviato ai client connessi.
  * Estende il discriminated union con un timestamp ISO 8601.
  */
-export type WebSocketBroadcastMessage = TaskWebSocketEventPayload & {
+export type WebSocketBroadcastMessage = WebSocketEventPayload & {
   timestamp: string;
 };
 
@@ -73,6 +126,27 @@ export class WebSocketBroadcaster {
   /**
    * Invia un evento a tutti i client WebSocket connessi con readyState OPEN.
    * I client con connessione non attiva vengono ignorati silenziosamente.
+   * Supporta sia eventi task che eventi agent.
+   */
+  broadcastEvent(event: WebSocketEventPayload): void {
+    const message = {
+      ...event,
+      timestamp: new Date().toISOString(),
+    };
+
+    const serializedMessage = JSON.stringify(message);
+
+    for (const client of this.connectedClients) {
+      if (client.readyState === WEBSOCKET_READY_STATE_OPEN) {
+        client.send(serializedMessage);
+      }
+    }
+  }
+
+  /**
+   * Invia un evento task a tutti i client WebSocket connessi con readyState OPEN.
+   * I client con connessione non attiva vengono ignorati silenziosamente.
+   * @deprecated Usare broadcastEvent che supporta anche gli eventi agent.
    */
   broadcastTaskEvent(event: TaskWebSocketEventPayload): void {
     const message = {

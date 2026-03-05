@@ -13,6 +13,7 @@ import type { DatabaseInitializationResult } from '@kanban-reloaded/core';
 import { registerTaskRoutes } from './routes/taskRoutes.js';
 import { WebSocketBroadcaster } from './websocket/websocketBroadcaster.js';
 import { registerWebSocketRoute } from './websocket/websocketRoute.js';
+import { AgentLauncher } from './agent/agentLauncher.js';
 
 export interface ServerDependencies {
   projectDirectoryPath: string;
@@ -43,6 +44,10 @@ export async function createServer(
     initializeDatabase(projectDirectoryPath);
   const taskService = new TaskService(databaseResult.database);
 
+  // Carica la configurazione per ottenere il comando agent
+  const configService = new ConfigService(projectDirectoryPath);
+  const projectConfiguration = configService.loadConfiguration();
+
   // Crea istanza Fastify
   const server = Fastify({ logger: true });
 
@@ -54,6 +59,14 @@ export async function createServer(
 
   // Broadcaster per inviare eventi a tutti i client WebSocket connessi
   const websocketBroadcaster = new WebSocketBroadcaster();
+
+  // AgentLauncher per lanciare automaticamente gli agent quando un task va in "in-progress"
+  const agentLauncher = new AgentLauncher(
+    projectConfiguration.agentCommand,
+    server.log,
+  );
+  agentLauncher.setTaskService(taskService);
+  agentLauncher.setWebSocketBroadcaster(websocketBroadcaster);
 
   // Determina il percorso dei file statici della dashboard
   const resolvedStaticPath =
@@ -77,7 +90,12 @@ export async function createServer(
   registerWebSocketRoute(server, websocketBroadcaster);
 
   // Registra route API
-  registerTaskRoutes(server, taskService, websocketBroadcaster);
+  registerTaskRoutes(server, taskService, websocketBroadcaster, agentLauncher);
+
+  // Alla chiusura del server, ferma tutti i processi agent attivi
+  server.addHook('onClose', async () => {
+    agentLauncher.stopAllAgents();
+  });
 
   // Catch-all per SPA routing: ogni GET non-API serve index.html
   server.setNotFoundHandler(async (request, reply) => {

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { TaskService } from '@kanban-reloaded/core';
 import type { TaskStatus, TaskPriority } from '@kanban-reloaded/core';
 import type { WebSocketBroadcaster } from '../websocket/websocketBroadcaster.js';
+import type { AgentLauncher } from '../agent/agentLauncher.js';
 
 const VALID_STATUSES = new Set<string>(['backlog', 'in-progress', 'done']);
 const VALID_PRIORITIES = new Set<string>(['high', 'medium', 'low']);
@@ -47,6 +48,7 @@ export function registerTaskRoutes(
   server: FastifyInstance,
   taskService: TaskService,
   websocketBroadcaster: WebSocketBroadcaster,
+  agentLauncher: AgentLauncher,
 ): void {
   server.get<{ Querystring: GetTasksQuerystring }>(
     '/api/tasks',
@@ -196,14 +198,44 @@ export function registerTaskRoutes(
       if (hasPosition) updateFields.position = body.position!;
 
       try {
-        const updatedTask = taskService.updateTask(id, updateFields);
+        // Recupera il task prima dell'aggiornamento per verificare se lo status e cambiato
+        const taskBeforeUpdate = taskService.getTaskById(id);
+        taskService.updateTask(id, updateFields);
 
+        // Se il task e stato spostato in "in-progress" (e prima non lo era), lancia l'agent
+        const isTransitionToInProgress =
+          hasStatus &&
+          updateFields.status === 'in-progress' &&
+          taskBeforeUpdate?.status !== 'in-progress';
+
+        let agentWarning: string | undefined;
+
+        if (isTransitionToInProgress) {
+          const taskForAgent = taskService.getTaskById(id)!;
+          const agentLaunchResult = agentLauncher.launchForTask(taskForAgent);
+
+          if (agentLaunchResult.launched) {
+            taskService.updateTask(id, { agentRunning: true });
+          } else {
+            agentWarning = agentLaunchResult.reason;
+          }
+        }
+
+        // Re-fetch finale per avere lo stato definitivo (incluso agentRunning)
+        const finalTask = taskService.getTaskById(id)!;
+
+        // Broadcast con lo stato finale del task
         websocketBroadcaster.broadcastTaskEvent({
           type: 'task:updated',
-          payload: updatedTask,
+          payload: finalTask,
         });
 
-        return reply.send(updatedTask);
+        const responsePayload: Record<string, unknown> = { ...finalTask };
+        if (agentWarning) {
+          responsePayload['warning'] = agentWarning;
+        }
+
+        return reply.send(responsePayload);
       } catch (error) {
         if (error instanceof Error && error.message.includes('Task non trovato')) {
           return reply.status(404).send({ error: error.message });
@@ -234,6 +266,11 @@ export function registerTaskRoutes(
       }
 
       try {
+        // Se il task ha un agent in esecuzione e la cancellazione e forzata, fermalo
+        if (existingTask.agentRunning && isForceDelete) {
+          agentLauncher.stopAgent(id);
+        }
+
         const deletedTask = taskService.deleteTask(id);
 
         websocketBroadcaster.broadcastTaskEvent({

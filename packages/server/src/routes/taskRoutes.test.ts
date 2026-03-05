@@ -502,3 +502,83 @@ describe('PATCH /api/tasks/:id', () => {
     expect(body.error).toContain('archived');
   });
 });
+
+describe('PATCH /api/tasks/:id — lancio automatico agent su transizione a in-progress', () => {
+  it('restituisce un warning quando nessun agent e configurato e il task va in in-progress', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task senza agent' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { status: 'in-progress' },
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    const updatedTask = JSON.parse(patchResponse.payload);
+    expect(updatedTask.status).toBe('in-progress');
+    // Senza agent configurato, agentRunning deve restare false e deve esserci un warning
+    expect(updatedTask.agentRunning).toBe(false);
+    expect(updatedTask.warning).toBeDefined();
+    expect(updatedTask.warning).toContain('Nessun agent configurato');
+  });
+
+  it('non lancia l agent quando il task viene spostato in done (non in-progress)', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task verso done' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { status: 'done' },
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    const updatedTask = JSON.parse(patchResponse.payload);
+    expect(updatedTask.status).toBe('done');
+    // Nessun warning perche non stiamo andando in in-progress
+    expect(updatedTask.warning).toBeUndefined();
+  });
+
+  it('non lancia l agent quando il task e gia in in-progress e viene aggiornato il titolo', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task iniziale' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    // Sposta in in-progress
+    await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { status: 'in-progress' },
+    });
+
+    // Aggiorna il titolo senza cambiare status — non deve tentare il lancio dell'agent
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { title: 'Titolo modificato' },
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    const updatedTask = JSON.parse(patchResponse.payload);
+    expect(updatedTask.title).toBe('Titolo modificato');
+    expect(updatedTask.warning).toBeUndefined();
+  });
+});

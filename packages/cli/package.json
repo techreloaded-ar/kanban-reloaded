@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@kanban-reloaded/core": "workspace:*",
-    "@kanban-reloaded/server": "workspace:*"
+    "@kanban-reloaded/server": "workspace:*",
+    "commander": "^13.0.0"
   }
 }

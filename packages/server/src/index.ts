@@ -1,2 +1,4 @@
 // @kanban-reloaded/server — Entry point
-// Fastify REST API and WebSocket server will be exported from here.
+
+export { createServer, startServer } from './server.js';
+export type { ServerDependencies, ServerInstance } from './server.js';

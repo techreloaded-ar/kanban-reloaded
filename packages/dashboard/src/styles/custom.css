@@ -1,0 +1,48 @@
+/* Custom utility classes for Kanban Reloaded */
+
+.bg-success {
+  background-color: var(--color-success);
+}
+
+.bg-info {
+  background-color: var(--color-info);
+}
+
+.bg-warning {
+  background-color: var(--color-warning);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-info {
+  color: var(--color-info);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.border-success {
+  border-color: var(--color-success);
+}
+
+.border-info {
+  border-color: var(--color-info);
+}
+
+.border-warning {
+  border-color: var(--color-warning);
+}
+
+/* Enhanced focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}

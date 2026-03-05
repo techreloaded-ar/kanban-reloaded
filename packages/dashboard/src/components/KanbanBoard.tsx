@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { DragDropContext } from '@hello-pangea/dnd';
+import type { DropResult } from '@hello-pangea/dnd';
 import type { Task, TaskPriority, TaskStatus } from '../types.js';
 import { KanbanColumn } from './KanbanColumn.js';
 
@@ -7,6 +9,7 @@ interface KanbanBoardProps {
   onCreateTask: () => void;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
+  onMoveTask?: (taskId: string, newStatus: TaskStatus, newPosition: number) => void;
 }
 
 type FilterOption = 'all' | TaskStatus;
@@ -24,8 +27,22 @@ const COLUMNS: { title: string; status: TaskStatus; colorClass: string }[] = [
   { title: 'Done', status: 'done', colorClass: 'bg-success' },
 ];
 
-export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriority }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriority, onMoveTask }: KanbanBoardProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
+
+  const handleDragEnd = useCallback((result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    if (!destination) {
+      return;
+    }
+
+    if (destination.droppableId === source.droppableId && destination.index === source.index) {
+      return;
+    }
+
+    onMoveTask?.(draggableId, destination.droppableId as TaskStatus, destination.index);
+  }, [onMoveTask]);
 
   const visibleColumns =
     activeFilter === 'all'
@@ -102,19 +119,21 @@ export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriorit
           </div>
         </div>
       ) : (
-        <div className="flex flex-1 gap-4 overflow-x-auto">
-          {visibleColumns.map((column) => (
-            <KanbanColumn
-              key={column.status}
-              title={column.title}
-              status={column.status}
-              tasks={tasksByStatus(column.status)}
-              colorClass={column.colorClass}
-              onDeleteTask={onDeleteTask}
-              onUpdatePriority={onUpdatePriority}
-            />
-          ))}
-        </div>
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="flex flex-1 gap-4 overflow-x-auto">
+            {visibleColumns.map((column) => (
+              <KanbanColumn
+                key={column.status}
+                title={column.title}
+                status={column.status}
+                tasks={tasksByStatus(column.status)}
+                colorClass={column.colorClass}
+                onDeleteTask={onDeleteTask}
+                onUpdatePriority={onUpdatePriority}
+              />
+            ))}
+          </div>
+        </DragDropContext>
       )}
     </div>
   );

@@ -198,9 +198,11 @@ I want spostare i task tra le colonne trascinandoli con il mouse,
 so that posso aggiornare lo stato dei task in modo intuitivo e immediato, senza dover usare menu o form.
 
 **Acceptance Criteria**
-- [ ] L'utente puo trascinare una card da una colonna e rilasciarla in un'altra; al rilascio, lo stato del task viene aggiornato nel database e la card rimane nella nuova posizione
-- [ ] Durante il trascinamento, un feedback visuale (ombra, placeholder) indica chiaramente dove la card verra posizionata
-- [ ] Se l'aggiornamento del database fallisce, la card torna nella posizione originale e viene mostrato un messaggio di errore
+- [x] L'utente puo trascinare una card da una colonna e rilasciarla in un'altra; al rilascio, lo stato del task viene aggiornato nel database e la card rimane nella nuova posizione
+- [x] Durante il trascinamento, un feedback visuale (ombra, placeholder) indica chiaramente dove la card verra posizionata
+- [x] Se l'aggiornamento del database fallisce, la card torna nella posizione originale e viene mostrato un messaggio di errore
+
+**Status: DONE**
 
 ---
 

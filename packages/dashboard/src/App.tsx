@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Task, TaskPriority } from './types.js';
+import type { Task, TaskPriority, TaskStatus } from './types.js';
 import { getAllTasks, createTask, updateTask, deleteTask } from './api/taskApi.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
@@ -59,6 +59,24 @@ export function App() {
     }
   }, [fetchTasks]);
 
+  const handleMoveTask = useCallback(async (taskId: string, newStatus: TaskStatus, newPosition: number) => {
+    const previousTasks = tasks;
+    setTasks(currentTasks =>
+      currentTasks.map(task =>
+        task.id === taskId ? { ...task, status: newStatus, position: newPosition } : task
+      )
+    );
+
+    try {
+      await updateTask(taskId, { status: newStatus, position: newPosition });
+      await fetchTasks();
+    } catch (error: unknown) {
+      setTasks(previousTasks);
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      console.error(`Errore nello spostamento del task: ${message}`);
+    }
+  }, [tasks, fetchTasks]);
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
@@ -84,7 +102,7 @@ export function App() {
             </div>
           </div>
         ) : (
-          <KanbanBoard tasks={tasks} onCreateTask={() => setIsCreateModalOpen(true)} onDeleteTask={(taskId) => void handleDeleteTask(taskId)} onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)} />
+          <KanbanBoard tasks={tasks} onCreateTask={() => setIsCreateModalOpen(true)} onDeleteTask={(taskId) => void handleDeleteTask(taskId)} onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)} onMoveTask={(taskId, newStatus, newPosition) => void handleMoveTask(taskId, newStatus, newPosition)} />
         )}
       </main>
 

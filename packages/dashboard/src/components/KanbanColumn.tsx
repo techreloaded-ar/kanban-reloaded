@@ -1,3 +1,4 @@
+import { Droppable } from '@hello-pangea/dnd';
 import type { Task, TaskPriority, TaskStatus } from '../types.js';
 import { TaskCard } from './TaskCard.js';
 
@@ -26,15 +27,24 @@ export function KanbanColumn({ title, status, tasks, colorClass, onDeleteTask, o
           {tasks.length}
         </span>
       </div>
-      <div className="flex flex-col gap-2">
-        {tasks.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            {EMPTY_STATE_MESSAGES[status]}
-          </p>
-        ) : (
-          tasks.map((task) => <TaskCard key={task.id} task={task} onDeleteTask={onDeleteTask} onUpdatePriority={onUpdatePriority} />)
+      <Droppable droppableId={status}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className={`flex flex-col gap-2 min-h-[100px] ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-lg' : ''}`}
+          >
+            {tasks.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {EMPTY_STATE_MESSAGES[status]}
+              </p>
+            ) : (
+              tasks.map((task, index) => <TaskCard key={task.id} task={task} index={index} onDeleteTask={onDeleteTask} onUpdatePriority={onUpdatePriority} />)
+            )}
+            {provided.placeholder}
+          </div>
         )}
-      </div>
+      </Droppable>
     </div>
   );
 }

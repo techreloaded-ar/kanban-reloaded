@@ -35,6 +35,7 @@ export interface UpdateTaskPayload {
   acceptanceCriteria?: string;
   priority?: TaskPriority;
   status?: TaskStatus;
+  position?: number;
 }
 
 export async function updateTask(taskId: string, payload: UpdateTaskPayload): Promise<Task> {

@@ -147,6 +147,48 @@ describe('ConfigService', () => {
     expect(configuration.columns).toEqual(DEFAULT_COLUMNS);
   });
 
+  it('include gli esempi di agentCommand nel file config.json creato di default', () => {
+    const projectDirectory = createAndTrackTemporaryDirectory();
+    const configService = new ConfigService(projectDirectory);
+
+    configService.loadConfiguration();
+
+    const configFilePath = path.join(projectDirectory, '.kanban-reloaded', 'config.json');
+    const fileContent = fs.readFileSync(configFilePath, 'utf-8');
+    const parsedFileContent = JSON.parse(fileContent) as Record<string, unknown>;
+
+    // Il campo agentCommandExamples deve essere presente nel file su disco
+    expect(parsedFileContent['agentCommandExamples']).toBeDefined();
+
+    const examples = parsedFileContent['agentCommandExamples'] as Record<string, string>;
+    expect(examples['_description']).toContain('Esempi di template');
+    expect(examples['claudeCode']).toContain('{{title}}');
+    expect(examples['claudeCode']).toContain('{{description}}');
+    expect(examples['genericShell']).toContain('{{acceptanceCriteria}}');
+  });
+
+  it('ignora il campo agentCommandExamples quando legge un config.json esistente', () => {
+    const projectDirectory = createAndTrackTemporaryDirectory();
+    const configWithExamples = {
+      agentCommand: null,
+      serverPort: 3000,
+      columns: DEFAULT_COLUMNS,
+      agentCommandExamples: {
+        _description: 'Esempi di template',
+        claudeCode: "claude --prompt '{{title}}'",
+      },
+    };
+    writeConfigFileManually(projectDirectory, JSON.stringify(configWithExamples, null, 2));
+
+    const configService = new ConfigService(projectDirectory);
+    const configuration = configService.loadConfiguration();
+
+    // La configurazione restituita non deve contenere il campo agentCommandExamples
+    expect(configuration).not.toHaveProperty('agentCommandExamples');
+    expect(configuration.agentCommand).toBeNull();
+    expect(configuration.serverPort).toBe(3000);
+  });
+
   it('gestisce campi aggiuntivi sconosciuti senza errori', () => {
     const projectDirectory = createAndTrackTemporaryDirectory();
     const configurationWithExtraFields = {

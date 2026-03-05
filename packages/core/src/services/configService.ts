@@ -16,6 +16,17 @@ const DEFAULT_CONFIGURATION: ProjectConfiguration = {
 };
 
 /**
+ * Contenuto aggiuntivo scritto nel file config.json per mostrare all'utente
+ * esempi di template per il campo agentCommand.
+ * Questo campo e' solo informativo e non fa parte del tipo ProjectConfiguration.
+ */
+const AGENT_COMMAND_EXAMPLES = {
+  _description: 'Esempi di template per agentCommand. Copia uno di questi nel campo agentCommand per usarlo.',
+  claudeCode: "claude --prompt '{{title}}: {{description}}'",
+  genericShell: "echo 'Task: {{title}} - {{description}} - Criteri: {{acceptanceCriteria}}'",
+};
+
+/**
  * Verifica che un valore sia un oggetto ColumnConfiguration valido.
  */
 function isValidColumnConfiguration(value: unknown): value is ColumnConfiguration {
@@ -83,8 +94,12 @@ export class ConfigService {
       // Crea la directory .kanban-reloaded/ se non esiste
       fs.mkdirSync(kanbanDirectoryPath, { recursive: true });
 
-      // Scrivi il file config.json con i valori predefiniti
-      const defaultConfigurationJson = JSON.stringify(DEFAULT_CONFIGURATION, null, 2) + '\n';
+      // Scrivi il file config.json con i valori predefiniti e gli esempi informativi
+      const defaultConfigurationWithExamples = {
+        ...DEFAULT_CONFIGURATION,
+        agentCommandExamples: AGENT_COMMAND_EXAMPLES,
+      };
+      const defaultConfigurationJson = JSON.stringify(defaultConfigurationWithExamples, null, 2) + '\n';
       fs.writeFileSync(configFilePath, defaultConfigurationJson, 'utf-8');
 
       return { ...DEFAULT_CONFIGURATION, columns: [...DEFAULT_COLUMNS] };

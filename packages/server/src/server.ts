@@ -115,12 +115,44 @@ export async function createServer(
   };
 }
 
+const MAXIMUM_PORT_ATTEMPTS = 10;
+
 /**
  * Avvia il server Fastify sulla porta e host specificati.
+ *
+ * Se la porta richiesta e occupata (EADDRINUSE), prova automaticamente
+ * le porte successive fino a un massimo di MAXIMUM_PORT_ATTEMPTS tentativi.
+ *
+ * @returns La porta effettivamente utilizzata dal server.
  */
 export async function startServer(
   serverInstance: FastifyInstance,
   port: number,
-): Promise<void> {
-  await serverInstance.listen({ host: '127.0.0.1', port });
+): Promise<number> {
+  for (let attempt = 0; attempt < MAXIMUM_PORT_ATTEMPTS; attempt++) {
+    const candidatePort = port + attempt;
+    try {
+      await serverInstance.listen({ host: '127.0.0.1', port: candidatePort });
+      return candidatePort;
+    } catch (error: unknown) {
+      const isAddressInUse =
+        error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
+
+      if (isAddressInUse) {
+        serverInstance.log.warn(
+          `Porta ${candidatePort} occupata, tentativo sulla porta ${candidatePort + 1}...`,
+        );
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  const lastAttemptedPort = port + MAXIMUM_PORT_ATTEMPTS - 1;
+  throw new Error(
+    `Impossibile trovare una porta disponibile tra ${port} e ${lastAttemptedPort}`,
+  );
 }

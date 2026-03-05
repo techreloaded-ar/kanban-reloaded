@@ -398,10 +398,12 @@ As Marco (sviluppatore indie),
 I want configurare il comando dell'agent AI nel file di configurazione specificando il template del comando,
 so that posso usare qualsiasi agent compatibile (Claude Code, Cursor, Aider, script custom) senza modificare il codice di Kanban Reloaded.
 
+**Status: DONE**
+
 **Acceptance Criteria**
-- [ ] Il campo `agentCommand` in `config.json` accetta un template stringa con placeholder (es. `"claude --prompt '{{title}}: {{description}}'"`) che il sistema interpreta e esegue
-- [ ] Il file di configurazione include un esempio commentato con template preconfigurati per Claude Code e per un generico comando shell
-- [ ] Se il campo `agentCommand` e assente o vuoto, il sistema funziona normalmente per tutte le operazioni tranne il lancio automatico dell'agent, che viene silenziosamente disabilitato
+- [x] Il campo `agentCommand` in `config.json` accetta un template stringa con placeholder (es. `"claude --prompt '{{title}}: {{description}}'"`) che il sistema interpreta e esegue
+- [x] Il file di configurazione include un esempio commentato con template preconfigurati per Claude Code e per un generico comando shell
+- [x] Se il campo `agentCommand` e assente o vuoto, il sistema funziona normalmente per tutte le operazioni tranne il lancio automatico dell'agent, che viene silenziosamente disabilitato
 
 ---
 
@@ -437,10 +439,12 @@ As Marco (sviluppatore indie),
 I want aggiungere un task dal terminale con un singolo comando,
 so that posso registrare rapidamente un'idea o un'attivita senza interrompere il flusso di lavoro nel terminale.
 
+**Status: DONE**
+
 **Acceptance Criteria**
-- [ ] Il comando `kanban-reloaded add "titolo" --description "descrizione" --priority alta` crea un nuovo task nel database con i parametri specificati e stampa l'ID del task creato
-- [ ] Il titolo e obbligatorio; se omesso, il comando mostra un messaggio di errore con l'usage corretto
-- [ ] Il comando funziona dalla root del repository o da qualsiasi sotto-directory, trovando automaticamente la directory `.kanban-reloaded/` risalendo l'albero delle directory
+- [x] Il comando `kanban-reloaded add "titolo" --description "descrizione" --priority alta` crea un nuovo task nel database con i parametri specificati e stampa l'ID del task creato
+- [x] Il titolo e obbligatorio; se omesso, il comando mostra un messaggio di errore con l'usage corretto
+- [x] Il comando funziona dalla root del repository o da qualsiasi sotto-directory, trovando automaticamente la directory `.kanban-reloaded/` risalendo l'albero delle directory
 
 ---
 
@@ -453,10 +457,12 @@ As Marco (sviluppatore indie),
 I want elencare i task dal terminale filtrando per stato,
 so that posso verificare rapidamente cosa c'e nel backlog, cosa e in lavorazione e cosa e completato senza aprire il browser.
 
+**Status: DONE**
+
 **Acceptance Criteria**
-- [ ] Il comando `kanban-reloaded list` mostra tutti i task in formato tabellare (ID, titolo, stato, priorita); il flag `--status backlog|in-progress|done` filtra per stato specifico
-- [ ] Se non ci sono task corrispondenti al filtro, il comando mostra un messaggio "Nessun task trovato" anziche un output vuoto
-- [ ] L'output e formattato con colonne allineate e leggibile anche con piu di 50 task
+- [x] Il comando `kanban-reloaded list` mostra tutti i task in formato tabellare (ID, titolo, stato, priorita); il flag `--status backlog|in-progress|done` filtra per stato specifico
+- [x] Se non ci sono task corrispondenti al filtro, il comando mostra un messaggio "Nessun task trovato" anziche un output vuoto
+- [x] L'output e formattato con colonne allineate e leggibile anche con piu di 50 task
 
 ---
 
@@ -469,10 +475,12 @@ As Marco (sviluppatore indie),
 I want spostare un task in un nuovo stato dal terminale,
 so that posso aggiornare il progresso dei task senza aprire la dashboard, ad esempio al termine di una sessione di lavoro.
 
+**Status: DONE**
+
 **Acceptance Criteria**
-- [ ] Il comando `kanban-reloaded move <id> <stato>` sposta il task nello stato specificato (backlog, in-progress, done) e conferma l'operazione con un messaggio di successo
-- [ ] Se il task viene spostato in "in-progress" e un agent e configurato, l'agent viene lanciato automaticamente (stesso comportamento del drag-and-drop nella dashboard)
-- [ ] Se l'ID non esiste o lo stato non e valido, il comando mostra un errore specifico
+- [x] Il comando `kanban-reloaded move <id> <stato>` sposta il task nello stato specificato (backlog, in-progress, done) e conferma l'operazione con un messaggio di successo
+- [x] Se il task viene spostato in "in-progress" e un agent e configurato, l'agent viene lanciato automaticamente (stesso comportamento del drag-and-drop nella dashboard)
+- [x] Se l'ID non esiste o lo stato non e valido, il comando mostra un errore specifico
 
 ---
 
@@ -485,10 +493,12 @@ As Marco (sviluppatore indie),
 I want avviare il server della dashboard con un singolo comando,
 so that posso accedere alla board visuale nel browser quando ne ho bisogno.
 
+**Status:** DONE
+
 **Acceptance Criteria**
-- [ ] Il comando `kanban-reloaded serve` avvia il server HTTP sulla porta configurata (default 3000) e stampa l'URL della dashboard (es. `Dashboard disponibile su http://localhost:3000`)
-- [ ] Se la porta e gia occupata, il sistema prova automaticamente la porta successiva (3001, 3002...) e indica quale porta e stata effettivamente utilizzata
-- [ ] Il comando `kanban-reloaded serve` puo essere terminato con Ctrl+C; alla terminazione, il server si chiude correttamente liberando la porta
+- [x] Il comando `kanban-reloaded serve` avvia il server HTTP sulla porta configurata (default 3000) e stampa l'URL della dashboard (es. `Dashboard disponibile su http://localhost:3000`)
+- [x] Se la porta e gia occupata, il sistema prova automaticamente la porta successiva (3001, 3002...) e indica quale porta e stata effettivamente utilizzata
+- [x] Il comando `kanban-reloaded serve` puo essere terminato con Ctrl+C; alla terminazione, il server si chiude correttamente liberando la porta
 
 ---
 

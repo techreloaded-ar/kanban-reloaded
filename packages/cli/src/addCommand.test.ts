@@ -1,9 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect, afterEach } from 'vitest';
 import {
   initializeDatabase,
+  discoverProjectDirectory,
   TaskService,
   KANBAN_DIRECTORY_NAME,
 } from '@kanban-reloaded/core';
@@ -174,5 +176,104 @@ describe('CLI add command — integration with TaskService', () => {
 
     expect(() => taskService.createTask({ title: '' })).toThrow();
     expect(() => taskService.createTask({ title: '   ' })).toThrow();
+  });
+});
+
+// ─── AC2: Title is mandatory — Commander rejects missing argument ───
+
+describe('CLI add command — missing title argument', () => {
+  it('exits with error when title argument is omitted', () => {
+    const cliBinaryPath = path.resolve(__dirname, '..', 'dist', 'index.js');
+
+    try {
+      execFileSync(process.execPath, [cliBinaryPath, 'add'], {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      // If we reach here, the command did not fail — that is wrong
+      expect.fail('Expected the command to exit with a non-zero code');
+    } catch (executionError: unknown) {
+      const typedError = executionError as { status: number; stderr: string };
+      expect(typedError.status).not.toBe(0);
+      expect(typedError.stderr).toContain('title');
+    }
+  });
+});
+
+// ─── AC3: discoverProjectDirectory walks up the directory tree ───
+
+describe('CLI add command — project directory discovery', () => {
+  const temporaryDirectoriesForDiscovery: string[] = [];
+
+  afterEach(() => {
+    for (const directoryPath of temporaryDirectoriesForDiscovery) {
+      try {
+        fs.rmSync(directoryPath, { recursive: true, force: true });
+      } catch {
+        // Ignore cleanup errors on Windows
+      }
+    }
+    temporaryDirectoriesForDiscovery.length = 0;
+  });
+
+  it('finds .kanban-reloaded from a nested subdirectory', () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'kanban-cli-discover-'),
+    );
+    temporaryDirectoriesForDiscovery.push(projectRoot);
+
+    // Create the .kanban-reloaded directory at the project root
+    fs.mkdirSync(path.join(projectRoot, KANBAN_DIRECTORY_NAME));
+
+    // Create a deeply nested subdirectory
+    const nestedSubdirectory = path.join(projectRoot, 'src', 'components', 'deep');
+    fs.mkdirSync(nestedSubdirectory, { recursive: true });
+
+    // discoverProjectDirectory should walk up and find the project root
+    const discoveredPath = discoverProjectDirectory(nestedSubdirectory);
+
+    expect(discoveredPath).toBe(projectRoot);
+  });
+
+  it('returns null when no .kanban-reloaded directory exists anywhere in the tree', () => {
+    const isolatedDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'kanban-cli-no-project-'),
+    );
+    temporaryDirectoriesForDiscovery.push(isolatedDirectory);
+
+    const discoveredPath = discoverProjectDirectory(isolatedDirectory);
+
+    expect(discoveredPath).toBeNull();
+  });
+
+  it('creates a task from a subdirectory using discovered project root', () => {
+    const projectRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'kanban-cli-subdir-add-'),
+    );
+    temporaryDirectoriesForDiscovery.push(projectRoot);
+
+    // Initialize database at the project root (creates .kanban-reloaded/)
+    const { database, closeConnection } = initializeDatabase(projectRoot);
+
+    try {
+      // Verify discovery from a nested path
+      const nestedPath = path.join(projectRoot, 'packages', 'cli');
+      fs.mkdirSync(nestedPath, { recursive: true });
+
+      const discoveredProjectPath = discoverProjectDirectory(nestedPath);
+      expect(discoveredProjectPath).toBe(projectRoot);
+
+      // Use the discovered path to create a task (simulating CLI behavior)
+      const taskService = new TaskService(database);
+      const createdTask = taskService.createTask({
+        title: 'Task from subdirectory',
+        priority: 'high',
+      });
+
+      expect(createdTask.displayId).toBe('TASK-001');
+      expect(createdTask.title).toBe('Task from subdirectory');
+    } finally {
+      closeConnection();
+    }
   });
 });

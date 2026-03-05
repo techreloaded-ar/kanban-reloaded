@@ -252,8 +252,10 @@ I want vedere il numero totale di task in ciascuna colonna della board,
 so that posso valutare rapidamente la distribuzione del lavoro senza contare manualmente le card.
 
 **Acceptance Criteria**
-- [ ] Ogni colonna mostra nell'intestazione il conteggio dei task contenuti (es. "Backlog (12)")
-- [ ] Il conteggio si aggiorna in tempo reale insieme agli spostamenti dei task
+- [x] Ogni colonna mostra nell'intestazione il conteggio dei task contenuti (es. "Backlog (12)")
+- [x] Il conteggio si aggiorna in tempo reale insieme agli spostamenti dei task
+
+**Status: DONE**
 
 ---
 

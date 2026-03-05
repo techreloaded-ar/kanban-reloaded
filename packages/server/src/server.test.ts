@@ -10,6 +10,14 @@ const temporaryDirectories: string[] = [];
 const serverInstances: ServerInstance[] = [];
 const netServersToClose: net.Server[] = [];
 
+/**
+ * Genera una porta casuale nell'intervallo 40000-59000 per evitare conflitti
+ * quando i test girano in parallelo (src/ e dist/ usano file diversi).
+ */
+function randomHighPort(): number {
+  return 40_000 + Math.floor(Math.random() * 19_000);
+}
+
 function createTemporaryProjectDirectory(): string {
   const projectDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'kanban-start-server-test-'),
@@ -72,15 +80,14 @@ describe('startServer', () => {
     });
     serverInstances.push(instance);
 
-    // Usa una porta alta per evitare conflitti
-    const requestedPort = 49_100;
+    const requestedPort = randomHighPort();
     const actualPort = await startServer(instance.server, requestedPort);
 
     expect(actualPort).toBe(requestedPort);
   });
 
   it('passa alla porta successiva se la porta richiesta e occupata', async () => {
-    const requestedPort = 49_200;
+    const requestedPort = randomHighPort();
 
     // Occupa la porta richiesta
     await occupyPort(requestedPort);
@@ -97,7 +104,7 @@ describe('startServer', () => {
   });
 
   it('salta piu porte occupate consecutive', async () => {
-    const requestedPort = 49_300;
+    const requestedPort = randomHighPort();
 
     // Occupa 3 porte consecutive
     await occupyPort(requestedPort);
@@ -116,7 +123,7 @@ describe('startServer', () => {
   });
 
   it('lancia errore dopo il numero massimo di tentativi', async () => {
-    const requestedPort = 49_400;
+    const requestedPort = randomHighPort();
 
     // Occupa 10 porte consecutive (il massimo dei tentativi)
     for (let offset = 0; offset < 10; offset++) {

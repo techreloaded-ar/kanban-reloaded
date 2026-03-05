@@ -113,11 +113,15 @@ function truncateTitle(title: string, maximumLength: number): string {
 program
   .command('list')
   .description('Elenca i task della board Kanban')
-  .option('-s, --status <status>', 'Filtra per stato: backlog, in-progress, done')
+  .option('-s, --status <status>', 'Filtra per stato: backlog, in-progress, done (o arretrato, in-corso, completato)')
   .action((options: { status?: string }) => {
-    if (options.status && !VALID_STATUSES.includes(options.status as TaskStatus)) {
+    const statusFilter = options.status
+      ? STATUS_MAP[options.status.toLowerCase()]
+      : undefined;
+
+    if (options.status && !statusFilter) {
       console.error(
-        `Stato non valido: '${options.status}'. Valori ammessi: backlog, in-progress, done`,
+        `Stato non valido: '${options.status}'. Valori ammessi: backlog, in-progress, done (o arretrato, in-corso, completato)`,
       );
       process.exitCode = 2;
       return;
@@ -135,8 +139,6 @@ program
     const { database, closeConnection } = initializeDatabase(projectDirectoryPath);
     try {
       const taskService = new TaskService(database);
-
-      const statusFilter = options.status as TaskStatus | undefined;
       const tasks = statusFilter
         ? taskService.getTasksByStatus(statusFilter)
         : taskService.getAllTasks();
@@ -335,9 +337,7 @@ program
         // Cerca per displayId (TASK-xxx) o per UUID
         const isDisplayId = taskIdentifier.toUpperCase().startsWith('TASK-');
         const foundTask = isDisplayId
-          ? taskService.getAllTasks().find(
-              (task) => task.displayId.toUpperCase() === taskIdentifier.toUpperCase(),
-            )
+          ? taskService.getTaskByDisplayId(taskIdentifier)
           : taskService.getTaskById(taskIdentifier);
 
         if (!foundTask) {

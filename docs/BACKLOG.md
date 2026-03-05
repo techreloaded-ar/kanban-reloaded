@@ -179,10 +179,12 @@ I want visualizzare i miei task in una board Kanban con tre colonne (Backlog, In
 so that posso avere una visione d'insieme immediata dello stato di avanzamento del progetto.
 
 **Acceptance Criteria**
-- [ ] Navigando a `http://localhost:{porta}` la dashboard mostra una board con tre colonne affiancate: Backlog, In Progress, Done, ciascuna con i task nel rispettivo stato rappresentati come card con titolo e indicatore di priorita
-- [ ] Se non ci sono task nel database, la board mostra le tre colonne vuote con un messaggio invitante a creare il primo task
-- [ ] La dashboard si carica completamente in meno di 1 secondo su localhost
-- [ ] Il layout e responsive e utilizzabile su schermi da 1024px in su
+- [x] Navigando a `http://localhost:{porta}` la dashboard mostra una board con tre colonne affiancate: Backlog, In Progress, Done, ciascuna con i task nel rispettivo stato rappresentati come card con titolo e indicatore di priorita
+- [x] Se non ci sono task nel database, la board mostra le tre colonne vuote con un messaggio invitante a creare il primo task
+- [x] La dashboard si carica completamente in meno di 1 secondo su localhost
+- [x] Il layout e responsive e utilizzabile su schermi da 1024px in su
+
+**Status: DONE**
 
 ---
 

@@ -324,4 +324,92 @@ describe('PATCH /api/tasks/:id', () => {
     const body = JSON.parse(patchResponse.payload);
     expect(body.error).toContain('title');
   });
+
+  it('aggiorna la priorita di un task esistente e restituisce 200', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task con priorita', priority: 'low' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+    expect(createdTask.priority).toBe('low');
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { priority: 'high' },
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    const updatedTask = JSON.parse(patchResponse.payload);
+    expect(updatedTask.priority).toBe('high');
+    expect(updatedTask.title).toBe('Task con priorita');
+  });
+
+  it('restituisce 400 quando la priorita non e valida', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task per priorita invalida' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { priority: 'urgente' },
+    });
+
+    expect(patchResponse.statusCode).toBe(400);
+    const body = JSON.parse(patchResponse.payload);
+    expect(body.error).toContain('urgente');
+  });
+
+  it('aggiorna lo status di un task esistente e restituisce 200', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task da spostare' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+    expect(createdTask.status).toBe('backlog');
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { status: 'done' },
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    const updatedTask = JSON.parse(patchResponse.payload);
+    expect(updatedTask.status).toBe('done');
+    expect(updatedTask.title).toBe('Task da spostare');
+  });
+
+  it('restituisce 400 quando lo status non e valido', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task per status invalido' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { status: 'archived' },
+    });
+
+    expect(patchResponse.statusCode).toBe(400);
+    const body = JSON.parse(patchResponse.payload);
+    expect(body.error).toContain('archived');
+  });
 });

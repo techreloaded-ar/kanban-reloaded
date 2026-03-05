@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import type { Task, TaskStatus } from '../types.js';
+import type { Task, TaskPriority, TaskStatus } from '../types.js';
 import { KanbanColumn } from './KanbanColumn.js';
 
 interface KanbanBoardProps {
   tasks: Task[];
   onCreateTask: () => void;
   onDeleteTask?: (taskId: string) => void;
+  onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
 }
 
 type FilterOption = 'all' | TaskStatus;
@@ -23,7 +24,7 @@ const COLUMNS: { title: string; status: TaskStatus; colorClass: string }[] = [
   { title: 'Done', status: 'done', colorClass: 'bg-success' },
 ];
 
-export function KanbanBoard({ tasks, onCreateTask, onDeleteTask }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriority }: KanbanBoardProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
 
   const visibleColumns =
@@ -110,6 +111,7 @@ export function KanbanBoard({ tasks, onCreateTask, onDeleteTask }: KanbanBoardPr
               tasks={tasksByStatus(column.status)}
               colorClass={column.colorClass}
               onDeleteTask={onDeleteTask}
+              onUpdatePriority={onUpdatePriority}
             />
           ))}
         </div>

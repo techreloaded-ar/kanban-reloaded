@@ -1,4 +1,4 @@
-import type { Task, TaskPriority } from '../types.js';
+import type { Task, TaskPriority, TaskStatus } from '../types.js';
 
 const API_BASE_URL = '/api';
 
@@ -25,6 +25,27 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
   });
   if (!response.ok) {
     throw new Error(`Errore nella creazione del task: ${response.statusText}`);
+  }
+  return response.json() as Promise<Task>;
+}
+
+export interface UpdateTaskPayload {
+  title?: string;
+  description?: string;
+  acceptanceCriteria?: string;
+  priority?: TaskPriority;
+  status?: TaskStatus;
+}
+
+export async function updateTask(taskId: string, payload: UpdateTaskPayload): Promise<Task> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json() as { error: string };
+    throw new Error(errorBody.error || `Errore nell'aggiornamento del task: ${response.statusText}`);
   }
   return response.json() as Promise<Task>;
 }

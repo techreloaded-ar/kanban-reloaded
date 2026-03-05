@@ -91,6 +91,10 @@ program
     '-a, --acceptance-criteria <text>',
     'Nuovi criteri di accettazione',
   )
+  .option(
+    '-P, --priority <level>',
+    'Nuova priorita: alta, media, bassa (o high, medium, low)',
+  )
   .action(
     (
       taskIdentifier: string,
@@ -98,11 +102,12 @@ program
         title?: string;
         description?: string;
         acceptanceCriteria?: string;
+        priority?: string;
       },
     ) => {
-      if (options.title === undefined && options.description === undefined && options.acceptanceCriteria === undefined) {
+      if (options.title === undefined && options.description === undefined && options.acceptanceCriteria === undefined && options.priority === undefined) {
         console.error(
-          'Specifica almeno un campo da modificare (--title, --description, --acceptance-criteria)',
+          'Specifica almeno un campo da modificare (--title, --description, --acceptance-criteria, --priority)',
         );
         process.exitCode = 2;
         return;
@@ -141,6 +146,17 @@ program
         if (options.title !== undefined) fieldsToUpdate.title = options.title;
         if (options.description !== undefined) fieldsToUpdate.description = options.description;
         if (options.acceptanceCriteria !== undefined) fieldsToUpdate.acceptanceCriteria = options.acceptanceCriteria;
+        if (options.priority !== undefined) {
+          const priorityValue = PRIORITY_MAP[options.priority.toLowerCase()];
+          if (!priorityValue) {
+            console.error(
+              `Priorita non valida: '${options.priority}'. Valori ammessi: alta, media, bassa (o high, medium, low)`,
+            );
+            process.exitCode = 2;
+            return;
+          }
+          fieldsToUpdate.priority = priorityValue;
+        }
 
         const updatedTask = taskService.updateTask(foundTask.id, fieldsToUpdate);
         console.log(`Task aggiornato: ${updatedTask.displayId} — ${updatedTask.title}`);

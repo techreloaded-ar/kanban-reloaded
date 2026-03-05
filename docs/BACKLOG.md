@@ -154,9 +154,11 @@ I want assegnare una priorita (alta, media, bassa) a ciascun task,
 so that il team possa identificare immediatamente quali task sono piu urgenti e importanti.
 
 **Acceptance Criteria**
-- [ ] Ogni task supporta tre livelli di priorita: alta, media, bassa, con "media" come valore di default alla creazione
-- [ ] La priorita e modificabile sia dalla dashboard che dalla CLI
-- [ ] Se viene specificato un valore di priorita non valido, il sistema rifiuta l'operazione con un errore di validazione
+- [x] Ogni task supporta tre livelli di priorita: alta, media, bassa, con "media" come valore di default alla creazione
+- [x] La priorita e modificabile sia dalla dashboard che dalla CLI
+- [x] Se viene specificato un valore di priorita non valido, il sistema rifiuta l'operazione con un errore di validazione
+
+**Status: DONE**
 
 ---
 

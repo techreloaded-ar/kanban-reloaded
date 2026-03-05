@@ -24,6 +24,8 @@ interface UpdateTaskRequestBody {
   title?: string;
   description?: string;
   acceptanceCriteria?: string;
+  priority?: string;
+  status?: string;
 }
 
 interface DeleteTaskQuerystring {
@@ -101,10 +103,12 @@ export function registerTaskRoutes(
       const hasTitle = body.title !== undefined;
       const hasDescription = body.description !== undefined;
       const hasAcceptanceCriteria = body.acceptanceCriteria !== undefined;
+      const hasPriority = body.priority !== undefined;
+      const hasStatus = body.status !== undefined;
 
-      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria) {
+      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus) {
         return reply.status(400).send({
-          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria',
+          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status',
         });
       }
 
@@ -114,10 +118,24 @@ export function registerTaskRoutes(
         });
       }
 
-      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string } = {};
+      if (hasPriority && !VALID_PRIORITIES.has(body.priority!)) {
+        return reply.status(400).send({
+          error: `Priorita non valida: '${body.priority}'. Valori ammessi: high, medium, low`,
+        });
+      }
+
+      if (hasStatus && !VALID_STATUSES.has(body.status!)) {
+        return reply.status(400).send({
+          error: `Status non valido: '${body.status}'. Valori ammessi: backlog, in-progress, done`,
+        });
+      }
+
+      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus } = {};
       if (hasTitle) updateFields.title = body.title!;
       if (hasDescription) updateFields.description = body.description!;
       if (hasAcceptanceCriteria) updateFields.acceptanceCriteria = body.acceptanceCriteria!;
+      if (hasPriority) updateFields.priority = body.priority! as TaskPriority;
+      if (hasStatus) updateFields.status = body.status! as TaskStatus;
 
       try {
         const updatedTask = taskService.updateTask(id, updateFields);

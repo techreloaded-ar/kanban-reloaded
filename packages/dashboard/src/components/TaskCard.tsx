@@ -1,8 +1,15 @@
 import type { Task, TaskPriority } from '../types.js';
 
+const PRIORITY_CYCLE: Record<TaskPriority, TaskPriority> = {
+  low: 'medium',
+  medium: 'high',
+  high: 'low',
+};
+
 interface TaskCardProps {
   task: Task;
   onDeleteTask?: (taskId: string) => void;
+  onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
 }
 
 const PRIORITY_LABELS: Record<TaskPriority, string> = {
@@ -17,7 +24,7 @@ const PRIORITY_CLASSES: Record<TaskPriority, string> = {
   low: 'bg-info text-white',
 };
 
-export function TaskCard({ task, onDeleteTask }: TaskCardProps) {
+export function TaskCard({ task, onDeleteTask, onUpdatePriority }: TaskCardProps) {
   return (
     <div className="group relative rounded-lg border border-border bg-card p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between">
@@ -25,7 +32,21 @@ export function TaskCard({ task, onDeleteTask }: TaskCardProps) {
           {task.displayId}
         </span>
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${PRIORITY_CLASSES[task.priority]}`}
+          role="button"
+          tabIndex={0}
+          onClick={(event) => {
+            event.stopPropagation();
+            onUpdatePriority?.(task.id, PRIORITY_CYCLE[task.priority]);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.stopPropagation();
+              event.preventDefault();
+              onUpdatePriority?.(task.id, PRIORITY_CYCLE[task.priority]);
+            }
+          }}
+          className={`cursor-pointer rounded-full px-2 py-0.5 text-xs font-medium hover:opacity-80 ${PRIORITY_CLASSES[task.priority]}`}
+          aria-label={`Cambia priorita task ${task.displayId} da ${PRIORITY_LABELS[task.priority]}`}
         >
           {PRIORITY_LABELS[task.priority]}
         </span>

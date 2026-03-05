@@ -84,6 +84,37 @@ describe('CLI edit command — integration with TaskService', () => {
     ).toThrowError(/Task non trovato/);
   });
 
+  it('aggiorna la priorita di un task tramite updateTask', () => {
+    const { taskService } = createTemporaryProjectWithDatabase();
+    const createdTask = taskService.createTask({
+      title: 'Task con priorita',
+      priority: 'low',
+    });
+
+    const updatedTask = taskService.updateTask(createdTask.id, {
+      priority: 'high',
+    });
+
+    expect(updatedTask.priority).toBe('high');
+    expect(updatedTask.title).toBe('Task con priorita');
+  });
+
+  it('PRIORITY_MAP restituisce undefined per valori non validi', () => {
+    const PRIORITY_MAP: Record<string, string> = {
+      alta: 'high',
+      high: 'high',
+      media: 'medium',
+      medium: 'medium',
+      bassa: 'low',
+      low: 'low',
+    };
+
+    expect(PRIORITY_MAP['invalida']).toBeUndefined();
+    expect(PRIORITY_MAP['xyz']).toBeUndefined();
+    expect(PRIORITY_MAP['alta']).toBe('high');
+    expect(PRIORITY_MAP['bassa']).toBe('low');
+  });
+
   it('aggiorna tutti i campi testuali contemporaneamente', () => {
     const { taskService } = createTemporaryProjectWithDatabase();
     const createdTask = taskService.createTask({

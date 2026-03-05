@@ -1,0 +1,29 @@
+{
+  "name": "@kanban-reloaded/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --build --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.38.0",
+    "better-sqlite3": "^11.0.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "typescript": "~5.7.3",
+    "vitest": "^3.0.0"
+  }
+}

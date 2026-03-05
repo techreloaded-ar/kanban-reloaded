@@ -57,9 +57,11 @@ I want che il database venga creato automaticamente nella directory `.kanban-rel
 so that posso iniziare a usare il tool senza alcuna configurazione manuale del database.
 
 **Acceptance Criteria**
-- [ ] Al primo avvio (CLI o server), se la directory `.kanban-reloaded/` non esiste, viene creata automaticamente insieme al file `database.sqlite` con lo schema completo delle tabelle (task, colonne, configurazione)
-- [ ] Se il database esiste gia, il sistema lo riutilizza senza sovrascriverlo o perdere dati
-- [ ] Se la directory del repository non ha permessi di scrittura, il sistema mostra un messaggio di errore chiaro e non va in crash
+- [x] Al primo avvio (CLI o server), se la directory `.kanban-reloaded/` non esiste, viene creata automaticamente insieme al file `database.sqlite` con lo schema completo delle tabelle (task, colonne, configurazione)
+- [x] Se il database esiste gia, il sistema lo riutilizza senza sovrascriverlo o perdere dati
+- [x] Se la directory del repository non ha permessi di scrittura, il sistema mostra un messaggio di errore chiaro e non va in crash
+
+**Status: DONE**
 
 ---
 

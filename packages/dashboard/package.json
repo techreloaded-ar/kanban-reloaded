@@ -1,0 +1,13 @@
+{
+  "name": "@kanban-reloaded/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo 'dashboard build not configured yet'",
+    "dev": "echo 'dashboard dev not configured yet'",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  }
+}

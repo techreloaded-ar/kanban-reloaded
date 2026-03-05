@@ -12,7 +12,11 @@ export type {
   UpdateTaskInput,
   ColumnConfiguration,
   ProjectConfiguration,
+  ConfigurationFileError,
 } from './models/types.js';
+
+// Costanti condivise
+export { KANBAN_DIRECTORY_NAME, DATABASE_FILENAME, CONFIG_FILENAME } from './storage/constants.js';
 
 // Storage e inizializzazione database
 export { initializeDatabase, discoverProjectDirectory } from './storage/database.js';

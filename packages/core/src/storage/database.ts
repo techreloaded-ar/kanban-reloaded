@@ -3,9 +3,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import * as schema from '../models/schema.js';
-
-const KANBAN_DIRECTORY_NAME = '.kanban-reloaded';
-const DATABASE_FILENAME = 'database.sqlite';
+import { KANBAN_DIRECTORY_NAME, DATABASE_FILENAME } from './constants.js';
 
 const CREATE_TASKS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS tasks (

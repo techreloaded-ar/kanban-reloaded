@@ -45,9 +45,14 @@ export interface ColumnConfiguration {
 }
 
 export interface ProjectConfiguration {
-  agentPreset: string;
-  commandTemplate: string;
+  agentCommand: string | null;
   serverPort: number;
-  autoStart: boolean;
   columns: ColumnConfiguration[];
+}
+
+export interface ConfigurationFileError {
+  filePath: string;
+  message: string;
+  lineNumber?: number;
+  columnNumber?: number;
 }

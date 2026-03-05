@@ -1,13 +1,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import Database from 'better-sqlite3';
 import { describe, it, expect, afterEach } from 'vitest';
-import { initializeDatabase } from '../storage/database.js';
 import { ConfigService } from './configService.js';
-
-const KANBAN_DIRECTORY_NAME = '.kanban-reloaded';
-const DATABASE_FILENAME = 'database.sqlite';
 
 /**
  * Raccoglie le directory temporanee create durante i test per la pulizia finale.
@@ -18,6 +13,16 @@ function createAndTrackTemporaryDirectory(): string {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'kanban-config-test-'));
   temporaryDirectories.push(temporaryDirectory);
   return temporaryDirectory;
+}
+
+/**
+ * Scrive manualmente un file config.json nella directory del progetto,
+ * creando la sottodirectory .kanban-reloaded/ se necessario.
+ */
+function writeConfigFileManually(projectDirectory: string, content: string): void {
+  const kanbanDirectory = path.join(projectDirectory, '.kanban-reloaded');
+  fs.mkdirSync(kanbanDirectory, { recursive: true });
+  fs.writeFileSync(path.join(kanbanDirectory, 'config.json'), content, 'utf-8');
 }
 
 afterEach(() => {
@@ -31,74 +36,139 @@ afterEach(() => {
   temporaryDirectories.length = 0;
 });
 
-describe('ConfigService.seedDefaultConfiguration', () => {
-  it('inserisce i valori di configurazione predefiniti su un database vuoto', () => {
+const DEFAULT_COLUMNS = [
+  { id: 'backlog', name: 'Backlog', color: '#3498DB' },
+  { id: 'in-progress', name: 'In Progress', color: '#E67E22' },
+  { id: 'done', name: 'Done', color: '#2ECC71' },
+];
+
+describe('ConfigService', () => {
+  it('crea config.json con valori di default quando il file non esiste', () => {
     const projectDirectory = createAndTrackTemporaryDirectory();
-    const { database, closeConnection } = initializeDatabase(projectDirectory);
-    const configService = new ConfigService(database);
+    const configService = new ConfigService(projectDirectory);
 
-    configService.seedDefaultConfiguration();
-    closeConnection();
+    const configuration = configService.loadConfiguration();
 
-    const databaseFilePath = path.join(projectDirectory, KANBAN_DIRECTORY_NAME, DATABASE_FILENAME);
-    const rawConnection = new Database(databaseFilePath);
+    // Il file deve esistere dopo la chiamata
+    const configFilePath = path.join(projectDirectory, '.kanban-reloaded', 'config.json');
+    expect(fs.existsSync(configFilePath)).toBe(true);
 
-    try {
-      const configRows = rawConnection
-        .prepare('SELECT key, value FROM config ORDER BY key')
-        .all() as Array<{ key: string; value: string }>;
+    // I valori restituiti devono essere quelli predefiniti
+    expect(configuration.agentCommand).toBeNull();
+    expect(configuration.serverPort).toBe(3000);
+    expect(configuration.columns).toEqual(DEFAULT_COLUMNS);
 
-      const configMap = new Map(configRows.map((row) => [row.key, JSON.parse(row.value) as unknown]));
-
-      expect(configMap.get('serverPort')).toBe(3000);
-      expect(configMap.get('agentPreset')).toBe('claude-code');
-      expect(configMap.get('autoStart')).toBe(true);
-      expect(configMap.get('commandTemplate')).toBe('claude-code --task "{{task_description}}"');
-      expect(configMap.get('columns')).toEqual([
-        { id: 'backlog', name: 'Backlog', color: '#3498DB' },
-        { id: 'in-progress', name: 'In Progress', color: '#E67E22' },
-        { id: 'done', name: 'Done', color: '#2ECC71' },
-      ]);
-    } finally {
-      rawConnection.close();
-    }
+    // Il contenuto del file deve corrispondere ai valori predefiniti
+    const fileContent = fs.readFileSync(configFilePath, 'utf-8');
+    const parsedFileContent = JSON.parse(fileContent) as Record<string, unknown>;
+    expect(parsedFileContent['agentCommand']).toBeNull();
+    expect(parsedFileContent['serverPort']).toBe(3000);
+    expect(parsedFileContent['columns']).toEqual(DEFAULT_COLUMNS);
   });
 
-  it('non sovrascrive i valori di configurazione esistenti', () => {
+  it('legge i valori personalizzati da un config.json esistente', () => {
     const projectDirectory = createAndTrackTemporaryDirectory();
-    const { database, closeConnection } = initializeDatabase(projectDirectory);
-    const configService = new ConfigService(database);
+    const customConfiguration = {
+      agentCommand: 'my-agent --run',
+      serverPort: 4000,
+      columns: [
+        { id: 'todo', name: 'Da Fare', color: '#FF0000' },
+        { id: 'done', name: 'Completato', color: '#00FF00' },
+      ],
+    };
+    writeConfigFileManually(projectDirectory, JSON.stringify(customConfiguration, null, 2));
 
-    // Prima chiamata: inserisce i valori predefiniti
-    configService.seedDefaultConfiguration();
-    closeConnection();
+    const configService = new ConfigService(projectDirectory);
+    const configuration = configService.loadConfiguration();
 
-    // Modifica manualmente il valore della porta del server
-    const databaseFilePath = path.join(projectDirectory, KANBAN_DIRECTORY_NAME, DATABASE_FILENAME);
-    const rawConnection = new Database(databaseFilePath);
+    expect(configuration.agentCommand).toBe('my-agent --run');
+    expect(configuration.serverPort).toBe(4000);
+    expect(configuration.columns).toEqual(customConfiguration.columns);
+  });
 
-    rawConnection
-      .prepare("UPDATE config SET value = ? WHERE key = 'serverPort'")
-      .run(JSON.stringify(4000));
-    rawConnection.close();
+  it('lancia un errore con numero di riga per JSON invalido', () => {
+    const projectDirectory = createAndTrackTemporaryDirectory();
+    // JSON malformato: virgola mancante dopo la seconda riga di contenuto
+    const malformedJson = `{
+  "agentCommand": null
+  "serverPort": 3000
+}`;
+    writeConfigFileManually(projectDirectory, malformedJson);
 
-    // Seconda chiamata con nuova connessione: non deve sovrascrivere il valore modificato
-    const { database: databaseForSecondSeed, closeConnection: closeSecondConnection } = initializeDatabase(projectDirectory);
-    const configServiceForSecondSeed = new ConfigService(databaseForSecondSeed);
-    configServiceForSecondSeed.seedDefaultConfiguration();
-    closeSecondConnection();
+    const configService = new ConfigService(projectDirectory);
 
-    const rawConnectionForVerify = new Database(databaseFilePath);
+    expect(() => configService.loadConfiguration()).toThrowError(/riga/);
+  });
 
-    try {
-      const portRow = rawConnectionForVerify
-        .prepare("SELECT value FROM config WHERE key = 'serverPort'")
-        .get() as { value: string } | undefined;
+  it('lancia un errore di validazione per tipi di campo errati', () => {
+    const projectDirectory = createAndTrackTemporaryDirectory();
+    const invalidConfiguration = {
+      agentCommand: null,
+      serverPort: 'abc',
+      columns: DEFAULT_COLUMNS,
+    };
+    writeConfigFileManually(projectDirectory, JSON.stringify(invalidConfiguration, null, 2));
 
-      expect(portRow).toBeDefined();
-      expect(JSON.parse(portRow!.value)).toBe(4000);
-    } finally {
-      rawConnectionForVerify.close();
-    }
+    const configService = new ConfigService(projectDirectory);
+
+    expect(() => configService.loadConfiguration()).toThrowError(/serverPort/);
+    expect(() => configService.loadConfiguration()).toThrowError(/Errore di validazione/);
+  });
+
+  it('non sovrascrive un config.json esistente', () => {
+    const projectDirectory = createAndTrackTemporaryDirectory();
+    const configService = new ConfigService(projectDirectory);
+
+    // Prima chiamata: crea il file con i valori predefiniti
+    configService.loadConfiguration();
+
+    // Modifica manualmente il file
+    const configFilePath = path.join(projectDirectory, '.kanban-reloaded', 'config.json');
+    const fileContent = fs.readFileSync(configFilePath, 'utf-8');
+    const parsedContent = JSON.parse(fileContent) as Record<string, unknown>;
+    parsedContent['serverPort'] = 5000;
+    fs.writeFileSync(configFilePath, JSON.stringify(parsedContent, null, 2), 'utf-8');
+
+    // Seconda chiamata: deve leggere il valore modificato, non sovrascriverlo
+    const configuration = configService.loadConfiguration();
+
+    expect(configuration.serverPort).toBe(5000);
+  });
+
+  it('applica i valori predefiniti quando il file contiene un oggetto vuoto', () => {
+    const projectDirectory = createAndTrackTemporaryDirectory();
+    writeConfigFileManually(projectDirectory, '{}');
+
+    const configService = new ConfigService(projectDirectory);
+    const configuration = configService.loadConfiguration();
+
+    expect(configuration.agentCommand).toBeNull();
+    expect(configuration.serverPort).toBe(3000);
+    expect(configuration.columns).toEqual(DEFAULT_COLUMNS);
+  });
+
+  it('gestisce campi aggiuntivi sconosciuti senza errori', () => {
+    const projectDirectory = createAndTrackTemporaryDirectory();
+    const configurationWithExtraFields = {
+      agentCommand: null,
+      serverPort: 3000,
+      columns: DEFAULT_COLUMNS,
+      futureFeature: true,
+      experimentalSetting: 'beta',
+    };
+    writeConfigFileManually(
+      projectDirectory,
+      JSON.stringify(configurationWithExtraFields, null, 2),
+    );
+
+    const configService = new ConfigService(projectDirectory);
+
+    // Non deve lanciare errori
+    const configuration = configService.loadConfiguration();
+
+    // I campi standard devono essere presenti e corretti
+    expect(configuration.agentCommand).toBeNull();
+    expect(configuration.serverPort).toBe(3000);
+    expect(configuration.columns).toEqual(DEFAULT_COLUMNS);
   });
 });

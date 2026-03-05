@@ -141,9 +141,15 @@ export async function startServer(
         (error as NodeJS.ErrnoException).code === 'EADDRINUSE';
 
       if (isAddressInUse) {
-        serverInstance.log.warn(
-          `Porta ${candidatePort} occupata, tentativo sulla porta ${candidatePort + 1}...`,
-        );
+        if (attempt < MAXIMUM_PORT_ATTEMPTS - 1) {
+          serverInstance.log.warn(
+            `Porta ${candidatePort} occupata, tentativo sulla porta ${candidatePort + 1}...`,
+          );
+        } else {
+          serverInstance.log.warn(
+            `Porta ${candidatePort} occupata, nessun altro tentativo disponibile.`,
+          );
+        }
         continue;
       }
 

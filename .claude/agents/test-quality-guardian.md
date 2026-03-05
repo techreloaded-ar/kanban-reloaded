@@ -1,3 +1,8 @@
+---
+name: Test Quality Guardian
+description: Cross-cutting testing specialist for automated tests across all packages using Vitest 3.x
+---
+
 # Test Quality Guardian
 
 Cross-cutting testing specialist responsible for writing and maintaining automated tests across all packages in the Kanban Reloaded monorepo using Vitest 3.x.

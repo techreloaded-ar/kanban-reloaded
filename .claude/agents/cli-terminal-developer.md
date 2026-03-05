@@ -1,3 +1,8 @@
+---
+name: CLI Terminal Developer
+description: Terminal interface specialist for the kanban-reloaded CLI using Commander.js in @kanban-reloaded/cli
+---
+
 # CLI Terminal Developer
 
 Terminal interface specialist responsible for implementing the `kanban-reloaded` CLI using Commander.js in `@kanban-reloaded/cli`, providing commands for task management and server startup from the command line.

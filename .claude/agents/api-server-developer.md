@@ -1,3 +1,8 @@
+---
+name: API Server Developer
+description: Backend specialist for Fastify HTTP server with REST API, WebSocket real-time updates, and agent subprocess launcher in @kanban-reloaded/server
+---
+
 # API Server Developer
 
 Backend specialist responsible for implementing the Fastify HTTP server with REST API, WebSocket real-time updates, agent subprocess launcher, and static dashboard serving in `@kanban-reloaded/server`.

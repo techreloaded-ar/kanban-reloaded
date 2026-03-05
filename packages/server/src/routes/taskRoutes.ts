@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { TaskService } from '@kanban-reloaded/core';
 import type { TaskStatus, TaskPriority } from '@kanban-reloaded/core';
+import type { WebSocketBroadcaster } from '../websocket/websocketBroadcaster.js';
 
 const VALID_STATUSES = new Set<string>(['backlog', 'in-progress', 'done']);
 const VALID_PRIORITIES = new Set<string>(['high', 'medium', 'low']);
@@ -26,6 +27,7 @@ interface UpdateTaskRequestBody {
   acceptanceCriteria?: string;
   priority?: string;
   status?: string;
+  position?: number;
 }
 
 interface ReorderTasksRequestBody {
@@ -44,6 +46,7 @@ interface DeleteTaskQuerystring {
 export function registerTaskRoutes(
   server: FastifyInstance,
   taskService: TaskService,
+  websocketBroadcaster: WebSocketBroadcaster,
 ): void {
   server.get<{ Querystring: GetTasksQuerystring }>(
     '/api/tasks',
@@ -89,6 +92,11 @@ export function registerTaskRoutes(
         acceptanceCriteria: body.acceptanceCriteria,
       });
 
+      websocketBroadcaster.broadcastTaskEvent({
+        type: 'task:created',
+        payload: createdTask,
+      });
+
       return reply.status(201).send(createdTask);
     },
   );
@@ -121,6 +129,13 @@ export function registerTaskRoutes(
 
       try {
         taskService.reorderTasksInColumn(body.taskIds, body.status as TaskStatus);
+
+        const reorderedTasks = taskService.getTasksByStatus(body.status as TaskStatus);
+        websocketBroadcaster.broadcastTaskEvent({
+          type: 'task:reordered',
+          payload: reorderedTasks,
+        });
+
         return reply.send({ success: true });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Errore durante il riordinamento dei task';
@@ -146,10 +161,11 @@ export function registerTaskRoutes(
       const hasAcceptanceCriteria = body.acceptanceCriteria !== undefined;
       const hasPriority = body.priority !== undefined;
       const hasStatus = body.status !== undefined;
+      const hasPosition = body.position !== undefined;
 
-      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus) {
+      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus && !hasPosition) {
         return reply.status(400).send({
-          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status',
+          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status, position',
         });
       }
 
@@ -171,15 +187,22 @@ export function registerTaskRoutes(
         });
       }
 
-      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus } = {};
+      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus; position?: number } = {};
       if (hasTitle) updateFields.title = body.title!;
       if (hasDescription) updateFields.description = body.description!;
       if (hasAcceptanceCriteria) updateFields.acceptanceCriteria = body.acceptanceCriteria!;
       if (hasPriority) updateFields.priority = body.priority! as TaskPriority;
       if (hasStatus) updateFields.status = body.status! as TaskStatus;
+      if (hasPosition) updateFields.position = body.position!;
 
       try {
         const updatedTask = taskService.updateTask(id, updateFields);
+
+        websocketBroadcaster.broadcastTaskEvent({
+          type: 'task:updated',
+          payload: updatedTask,
+        });
+
         return reply.send(updatedTask);
       } catch (error) {
         if (error instanceof Error && error.message.includes('Task non trovato')) {
@@ -212,6 +235,11 @@ export function registerTaskRoutes(
 
       try {
         const deletedTask = taskService.deleteTask(id);
+
+        websocketBroadcaster.broadcastTaskEvent({
+          type: 'task:deleted',
+          payload: { id: deletedTask.id },
+        });
 
         const responsePayload: Record<string, unknown> = { ...deletedTask };
         if (deletedTask.agentRunning) {

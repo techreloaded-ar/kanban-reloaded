@@ -234,9 +234,11 @@ I want che qualsiasi modifica ai task (da dashboard, CLI, API o agent) si propag
 so that la board sia sempre la fonte di verita aggiornata e io possa usarla come pannello di controllo del progetto.
 
 **Acceptance Criteria**
-- [ ] Quando un task viene creato, modificato, spostato o eliminato (via API, CLI o agent), la dashboard riflette il cambiamento entro 500ms senza ricaricare la pagina
-- [ ] Se la connessione WebSocket si interrompe, la dashboard mostra un indicatore di "connessione persa" e tenta la riconnessione automatica ogni 5 secondi
-- [ ] Alla riconnessione, la board si sincronizza con lo stato attuale del database
+- [x] Quando un task viene creato, modificato, spostato o eliminato (via API, CLI o agent), la dashboard riflette il cambiamento entro 500ms senza ricaricare la pagina
+- [x] Se la connessione WebSocket si interrompe, la dashboard mostra un indicatore di "connessione persa" e tenta la riconnessione automatica ogni 5 secondi
+- [x] Alla riconnessione, la board si sincronizza con lo stato attuale del database
+
+**Status: DONE**
 
 ---
 

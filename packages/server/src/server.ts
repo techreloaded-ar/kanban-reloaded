@@ -2,6 +2,7 @@ import path from 'node:path';
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
 import fastifyStatic from '@fastify/static';
+import fastifyWebSocket from '@fastify/websocket';
 import type { FastifyInstance } from 'fastify';
 import {
   initializeDatabase,
@@ -10,6 +11,8 @@ import {
 } from '@kanban-reloaded/core';
 import type { DatabaseInitializationResult } from '@kanban-reloaded/core';
 import { registerTaskRoutes } from './routes/taskRoutes.js';
+import { WebSocketBroadcaster } from './websocket/websocketBroadcaster.js';
+import { registerWebSocketRoute } from './websocket/websocketRoute.js';
 
 export interface ServerDependencies {
   projectDirectoryPath: string;
@@ -46,6 +49,12 @@ export async function createServer(
   // CORS per dev mode (dashboard su porta diversa)
   await server.register(fastifyCors, { origin: true });
 
+  // WebSocket plugin per la sincronizzazione real-time
+  await server.register(fastifyWebSocket);
+
+  // Broadcaster per inviare eventi a tutti i client WebSocket connessi
+  const websocketBroadcaster = new WebSocketBroadcaster();
+
   // Determina il percorso dei file statici della dashboard
   const resolvedStaticPath =
     staticFilesPath ??
@@ -64,8 +73,11 @@ export async function createServer(
     );
   }
 
+  // Registra route WebSocket
+  registerWebSocketRoute(server, websocketBroadcaster);
+
   // Registra route API
-  registerTaskRoutes(server, taskService);
+  registerTaskRoutes(server, taskService, websocketBroadcaster);
 
   // Catch-all per SPA routing: ogni GET non-API serve index.html
   server.setNotFoundHandler(async (request, reply) => {

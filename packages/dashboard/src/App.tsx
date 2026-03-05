@@ -2,8 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'motion/react';
 import type { Task, TaskPriority, TaskStatus } from './types.js';
 import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks } from './api/taskApi.js';
+import { useWebSocket } from './hooks/useWebSocket.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
+import { ConnectionStatusIndicator } from './components/ConnectionStatusIndicator.js';
 import { Sidebar } from './components/Sidebar.js';
 import { TopBar } from './components/TopBar.js';
 import { TaskDetailPanel } from './components/TaskDetailPanel.js';
@@ -49,6 +51,22 @@ export function App() {
   useEffect(() => {
     void fetchTasks();
   }, [fetchTasks]);
+
+  const handleWebSocketTaskEvent = useCallback(() => {
+    // On any task event from WebSocket, refresh the full task list
+    // to guarantee consistency with the server state
+    void fetchTasks();
+  }, [fetchTasks]);
+
+  const handleWebSocketReconnect = useCallback(() => {
+    // On reconnection, sync the board with current database state
+    void fetchTasks();
+  }, [fetchTasks]);
+
+  const { connectionLost } = useWebSocket({
+    onTaskEvent: handleWebSocketTaskEvent,
+    onReconnect: handleWebSocketReconnect,
+  });
 
   const handleCreateTask = useCallback(async (taskData: {
     title: string;
@@ -163,6 +181,8 @@ export function App() {
         />
 
         <main className="flex-1 overflow-auto p-6">
+          <ConnectionStatusIndicator connectionLost={connectionLost} />
+
           {loadingError !== null ? (
             <div className="flex items-center justify-center p-8">
               <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center">

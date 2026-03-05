@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Task, TaskPriority } from './types.js';
-import { getAllTasks, createTask } from './api/taskApi.js';
+import { getAllTasks, createTask, deleteTask } from './api/taskApi.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
 
@@ -39,6 +39,16 @@ export function App() {
     await fetchTasks();
   }, [fetchTasks]);
 
+  const handleDeleteTask = useCallback(async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+      await fetchTasks();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      console.error(`Errore nell'eliminazione del task: ${message}`);
+    }
+  }, [fetchTasks]);
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
@@ -64,7 +74,7 @@ export function App() {
             </div>
           </div>
         ) : (
-          <KanbanBoard tasks={tasks} onCreateTask={() => setIsCreateModalOpen(true)} />
+          <KanbanBoard tasks={tasks} onCreateTask={() => setIsCreateModalOpen(true)} onDeleteTask={(taskId) => void handleDeleteTask(taskId)} />
         )}
       </main>
 

@@ -143,4 +143,38 @@ export class TaskService {
 
     return this.getTaskById(taskId) as Task;
   }
+
+  /**
+   * Elimina un task dal database.
+   * Restituisce il task eliminato (i dati letti prima della cancellazione).
+   *
+   * @throws Error se il task non esiste
+   */
+  deleteTask(taskId: string): Task {
+    const existingTask = this.getTaskById(taskId);
+    if (!existingTask) {
+      throw new Error(`Task non trovato con ID: ${taskId}`);
+    }
+
+    this.database
+      .delete(tasksTable)
+      .where(eq(tasksTable.id, taskId))
+      .run();
+
+    return existingTask;
+  }
+
+  /**
+   * Cerca un task per displayId (confronto case-insensitive).
+   * Utile per la CLI dove l'utente digita "TASK-001" o "task-001".
+   *
+   * Ritorna undefined se il task non esiste.
+   */
+  getTaskByDisplayId(displayId: string): Task | undefined {
+    return this.database
+      .select()
+      .from(tasksTable)
+      .where(sql`LOWER(${tasksTable.displayId}) = LOWER(${displayId})`)
+      .get() as Task | undefined;
+  }
 }

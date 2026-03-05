@@ -185,6 +185,67 @@ describe('POST /api/tasks', () => {
   });
 });
 
+describe('DELETE /api/tasks/:id', () => {
+  it('elimina un task esistente e restituisce 200 con i dati del task', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task da eliminare' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const deleteResponse = await server.inject({
+      method: 'DELETE',
+      url: `/api/tasks/${createdTask.id}`,
+    });
+
+    expect(deleteResponse.statusCode).toBe(200);
+    const deletedTask = JSON.parse(deleteResponse.payload);
+    expect(deletedTask.id).toBe(createdTask.id);
+    expect(deletedTask.title).toBe('Task da eliminare');
+  });
+
+  it('restituisce 404 per un task ID inesistente', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const response = await server.inject({
+      method: 'DELETE',
+      url: '/api/tasks/00000000-0000-0000-0000-000000000000',
+    });
+
+    expect(response.statusCode).toBe(404);
+    const body = JSON.parse(response.payload);
+    expect(body.error).toContain('Task non trovato');
+  });
+
+  it('dopo la cancellazione GET /api/tasks restituisce array vuoto', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task temporaneo' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    await server.inject({
+      method: 'DELETE',
+      url: `/api/tasks/${createdTask.id}`,
+    });
+
+    const getResponse = await server.inject({
+      method: 'GET',
+      url: '/api/tasks',
+    });
+
+    expect(getResponse.statusCode).toBe(200);
+    const tasks = JSON.parse(getResponse.payload);
+    expect(tasks).toHaveLength(0);
+  });
+});
+
 describe('PATCH /api/tasks/:id', () => {
   it('aggiorna il titolo di un task esistente e restituisce 200', async () => {
     const { server } = await createTemporaryServerInstance();

@@ -6,6 +6,7 @@ interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
   colorClass: string;
+  onDeleteTask?: (taskId: string) => void;
 }
 
 const EMPTY_STATE_MESSAGES: Record<TaskStatus, string> = {
@@ -14,7 +15,7 @@ const EMPTY_STATE_MESSAGES: Record<TaskStatus, string> = {
   done: 'Nessun task completato',
 };
 
-export function KanbanColumn({ title, status, tasks, colorClass }: KanbanColumnProps) {
+export function KanbanColumn({ title, status, tasks, colorClass, onDeleteTask }: KanbanColumnProps) {
   return (
     <div className="flex min-w-[300px] flex-1 flex-col rounded-lg bg-muted/50 p-3">
       <div className="mb-3 flex items-center gap-2">
@@ -30,7 +31,7 @@ export function KanbanColumn({ title, status, tasks, colorClass }: KanbanColumnP
             {EMPTY_STATE_MESSAGES[status]}
           </p>
         ) : (
-          tasks.map((task) => <TaskCard key={task.id} task={task} />)
+          tasks.map((task) => <TaskCard key={task.id} task={task} onDeleteTask={onDeleteTask} />)
         )}
       </div>
     </div>

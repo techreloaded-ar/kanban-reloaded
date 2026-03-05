@@ -5,6 +5,7 @@ import { KanbanColumn } from './KanbanColumn.js';
 interface KanbanBoardProps {
   tasks: Task[];
   onCreateTask: () => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
 type FilterOption = 'all' | TaskStatus;
@@ -22,7 +23,7 @@ const COLUMNS: { title: string; status: TaskStatus; colorClass: string }[] = [
   { title: 'Done', status: 'done', colorClass: 'bg-success' },
 ];
 
-export function KanbanBoard({ tasks, onCreateTask }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onCreateTask, onDeleteTask }: KanbanBoardProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
 
   const visibleColumns =
@@ -108,6 +109,7 @@ export function KanbanBoard({ tasks, onCreateTask }: KanbanBoardProps) {
               status={column.status}
               tasks={tasksByStatus(column.status)}
               colorClass={column.colorClass}
+              onDeleteTask={onDeleteTask}
             />
           ))}
         </div>

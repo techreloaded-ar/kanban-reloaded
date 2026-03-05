@@ -136,9 +136,11 @@ I want eliminare un task che non e piu rilevante,
 so that il backlog rimanga pulito e contenga solo attivita effettivamente da svolgere.
 
 **Acceptance Criteria**
-- [ ] Dato un task ID valido, il task viene rimosso permanentemente dal database
-- [ ] Se il task e attualmente in stato "In Progress" con un agent in esecuzione, il sistema avvisa l'utente prima di procedere con l'eliminazione
-- [ ] Se il task ID non esiste, il sistema restituisce un errore 404
+- [x] Dato un task ID valido, il task viene rimosso permanentemente dal database
+- [x] Se il task e attualmente in stato "In Progress" con un agent in esecuzione, il sistema avvisa l'utente prima di procedere con l'eliminazione
+- [x] Se il task ID non esiste, il sistema restituisce un errore 404
+
+**Status: DONE**
 
 ---
 

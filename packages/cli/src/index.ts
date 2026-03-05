@@ -155,6 +155,65 @@ program
   );
 
 program
+  .command('delete')
+  .description('Elimina un task dalla board Kanban')
+  .argument('<id>', 'ID del task (es. TASK-001 o UUID)')
+  .option('-f, --force', 'Forza la cancellazione anche se un agente e in esecuzione')
+  .action(
+    (
+      taskIdentifier: string,
+      options: {
+        force?: boolean;
+      },
+    ) => {
+      const projectDirectoryPath = discoverProjectDirectory();
+      if (!projectDirectoryPath) {
+        console.error(
+          'Nessun progetto Kanban Reloaded trovato. Esegui il comando dalla root del repository o da una sotto-directory.',
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      const { database, closeConnection } = initializeDatabase(projectDirectoryPath);
+      try {
+        const taskService = new TaskService(database);
+
+        // Cerca per displayId (TASK-xxx) o per UUID
+        const isDisplayId = taskIdentifier.toUpperCase().startsWith('TASK-');
+        const foundTask = isDisplayId
+          ? taskService.getTaskByDisplayId(taskIdentifier)
+          : taskService.getTaskById(taskIdentifier);
+
+        if (!foundTask) {
+          console.error(
+            `Task '${taskIdentifier}' non trovato. Usa 'kanban-reloaded list' per vedere i task disponibili.`,
+          );
+          process.exitCode = 1;
+          return;
+        }
+
+        if (foundTask.agentRunning && !options.force) {
+          console.error(
+            `Il task ${foundTask.displayId} ha un agente in esecuzione. Usa --force per forzare la cancellazione.`,
+          );
+          process.exitCode = 2;
+          return;
+        }
+
+        taskService.deleteTask(foundTask.id);
+        console.log(`Task eliminato: ${foundTask.displayId} — ${foundTask.title}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Errore nella cancellazione del task: ${message}`);
+        process.exitCode = 1;
+      } finally {
+        closeConnection();
+      }
+    },
+  );
+
+program
   .command('serve')
   .description('Avvia il server della dashboard Kanban')
   .option('-p, --port <port>', 'Porta del server (default: da config o 3000)')

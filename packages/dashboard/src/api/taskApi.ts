@@ -28,3 +28,15 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
   }
   return response.json() as Promise<Task>;
 }
+
+export async function deleteTask(taskId: string, force?: boolean): Promise<Task> {
+  const queryString = force ? '?force=true' : '';
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}${queryString}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    const errorBody = await response.json() as { error: string };
+    throw new Error(errorBody.error || `Errore nell'eliminazione del task: ${response.statusText}`);
+  }
+  return response.json() as Promise<Task>;
+}

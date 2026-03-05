@@ -219,6 +219,87 @@ describe('TaskService', () => {
     });
   });
 
+  describe('deleteTask', () => {
+    it('elimina un task e verifica che non esista piu nel database', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const createdTask = taskService.createTask({ title: 'Task da eliminare' });
+
+      taskService.deleteTask(createdTask.id);
+
+      const foundTask = taskService.getTaskById(createdTask.id);
+      expect(foundTask).toBeUndefined();
+    });
+
+    it('restituisce i dati del task eliminato', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const createdTask = taskService.createTask({ title: 'Task restituito', priority: 'high' });
+
+      const deletedTask = taskService.deleteTask(createdTask.id);
+
+      expect(deletedTask.id).toBe(createdTask.id);
+      expect(deletedTask.title).toBe('Task restituito');
+      expect(deletedTask.priority).toBe('high');
+      expect(deletedTask.displayId).toBe(createdTask.displayId);
+    });
+
+    it('lancia errore se il task ID non esiste', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      expect(() =>
+        taskService.deleteTask('00000000-0000-0000-0000-000000000000'),
+      ).toThrowError(/Task non trovato/);
+    });
+
+    it('non influenza gli altri task presenti nel database', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const taskToKeep1 = taskService.createTask({ title: 'Task che resta 1' });
+      const taskToDelete = taskService.createTask({ title: 'Task da rimuovere' });
+      const taskToKeep2 = taskService.createTask({ title: 'Task che resta 2' });
+
+      taskService.deleteTask(taskToDelete.id);
+
+      const allTasks = taskService.getAllTasks();
+      expect(allTasks).toHaveLength(2);
+      expect(allTasks.map((task) => task.id)).toContain(taskToKeep1.id);
+      expect(allTasks.map((task) => task.id)).toContain(taskToKeep2.id);
+      expect(allTasks.map((task) => task.id)).not.toContain(taskToDelete.id);
+    });
+  });
+
+  describe('getTaskByDisplayId', () => {
+    it('trova un task per displayId esatto', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const createdTask = taskService.createTask({ title: 'Task cercato' });
+
+      const foundTask = taskService.getTaskByDisplayId(createdTask.displayId);
+
+      expect(foundTask).toBeDefined();
+      expect(foundTask!.id).toBe(createdTask.id);
+      expect(foundTask!.title).toBe('Task cercato');
+    });
+
+    it('trova un task con confronto case-insensitive', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const createdTask = taskService.createTask({ title: 'Task case test' });
+
+      const foundWithLowerCase = taskService.getTaskByDisplayId('task-001');
+      const foundWithUpperCase = taskService.getTaskByDisplayId('TASK-001');
+
+      expect(foundWithLowerCase).toBeDefined();
+      expect(foundWithLowerCase!.id).toBe(createdTask.id);
+      expect(foundWithUpperCase).toBeDefined();
+      expect(foundWithUpperCase!.id).toBe(createdTask.id);
+    });
+
+    it('ritorna undefined per displayId inesistente', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const foundTask = taskService.getTaskByDisplayId('TASK-999');
+
+      expect(foundTask).toBeUndefined();
+    });
+  });
+
   it('calcola posizioni indipendenti per colonna', () => {
     const { taskService } = createTemporaryProjectWithDatabase();
 

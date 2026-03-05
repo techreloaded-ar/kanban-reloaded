@@ -26,6 +26,10 @@ interface UpdateTaskRequestBody {
   acceptanceCriteria?: string;
 }
 
+interface DeleteTaskQuerystring {
+  force?: string;
+}
+
 /**
  * Registra le route REST per la gestione dei task.
  * Le route vengono chiuse sul taskService passato tramite closure.
@@ -118,6 +122,45 @@ export function registerTaskRoutes(
       try {
         const updatedTask = taskService.updateTask(id, updateFields);
         return reply.send(updatedTask);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Task non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  server.delete<{ Params: TaskRouteParams; Querystring: DeleteTaskQuerystring }>(
+    '/api/tasks/:id',
+    async (request, reply) => {
+      const { id } = request.params;
+      const forceParameter = request.query.force;
+      const isForceDelete = forceParameter === 'true';
+
+      // Verifica esistenza del task prima della cancellazione
+      const existingTask = taskService.getTaskById(id);
+      if (!existingTask) {
+        return reply.status(404).send({ error: `Task non trovato con ID: ${id}` });
+      }
+
+      // Se il task ha un agent in esecuzione e force non e' abilitato, rifiuta con 409
+      if (existingTask.agentRunning && !isForceDelete) {
+        return reply.status(409).send({
+          error: 'Impossibile eliminare il task: un agent e in esecuzione. Usa ?force=true per forzare la cancellazione.',
+        });
+      }
+
+      try {
+        const deletedTask = taskService.deleteTask(id);
+
+        const responsePayload: Record<string, unknown> = { ...deletedTask };
+        if (deletedTask.agentRunning) {
+          responsePayload.warning = 'Il task ha un agent in esecuzione';
+          responsePayload.agentWasRunning = true;
+        }
+
+        return reply.send(responsePayload);
       } catch (error) {
         if (error instanceof Error && error.message.includes('Task non trovato')) {
           return reply.status(404).send({ error: error.message });

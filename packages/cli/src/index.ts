@@ -3,9 +3,21 @@
 import { Command } from 'commander';
 import {
   discoverProjectDirectory,
+  initializeDatabase,
   ConfigService,
+  TaskService,
 } from '@kanban-reloaded/core';
+import type { TaskPriority } from '@kanban-reloaded/core';
 import { createServer, startServer } from '@kanban-reloaded/server';
+
+const PRIORITY_MAP: Record<string, TaskPriority> = {
+  alta: 'high',
+  high: 'high',
+  media: 'medium',
+  medium: 'medium',
+  bassa: 'low',
+  low: 'low',
+};
 
 const program = new Command();
 
@@ -13,6 +25,61 @@ program
   .name('kanban-reloaded')
   .description('CLI per la gestione della board Kanban Reloaded')
   .version('0.1.0');
+
+program
+  .command('add')
+  .description('Crea un nuovo task nella board Kanban')
+  .argument('<title>', 'Titolo del task')
+  .option('-d, --description <text>', 'Descrizione del task')
+  .option('-a, --acceptance-criteria <text>', 'Criteri di accettazione')
+  .option('-P, --priority <level>', 'Priorita: alta, media, bassa (o high, medium, low)', 'medium')
+  .action(
+    (
+      title: string,
+      options: {
+        description?: string;
+        acceptanceCriteria?: string;
+        priority: string;
+      },
+    ) => {
+      const projectDirectoryPath = discoverProjectDirectory();
+      if (!projectDirectoryPath) {
+        console.error(
+          "Nessun progetto Kanban Reloaded trovato. Esegui il comando dalla root del repository o da una sotto-directory.",
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      const priorityValue = PRIORITY_MAP[options.priority.toLowerCase()];
+      if (!priorityValue) {
+        console.error(
+          `Priorita non valida: '${options.priority}'. Valori ammessi: alta, media, bassa (o high, medium, low)`,
+        );
+        process.exitCode = 2;
+        return;
+      }
+
+      const { database, closeConnection } = initializeDatabase(projectDirectoryPath);
+      try {
+        const taskService = new TaskService(database);
+        const createdTask = taskService.createTask({
+          title,
+          description: options.description,
+          acceptanceCriteria: options.acceptanceCriteria,
+          priority: priorityValue,
+        });
+
+        console.log(`Task creato: ${createdTask.displayId} — ${createdTask.title}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Errore nella creazione del task: ${message}`);
+        process.exitCode = 1;
+      } finally {
+        closeConnection();
+      }
+    },
+  );
 
 program
   .command('serve')

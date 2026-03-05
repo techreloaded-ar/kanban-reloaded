@@ -23,5 +23,8 @@
     "@kanban-reloaded/core": "workspace:*",
     "@kanban-reloaded/server": "workspace:*",
     "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
   }
 }

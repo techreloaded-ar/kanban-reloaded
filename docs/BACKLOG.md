@@ -75,9 +75,11 @@ I want poter definire le impostazioni del progetto in un file `.kanban-reloaded/
 so that posso configurare il comando dell'agent, la porta del server e le colonne della board senza modificare codice.
 
 **Acceptance Criteria**
-- [ ] Al primo avvio, se `config.json` non esiste, viene generato un file di configurazione con valori di default sensati (porta 3000, colonne Backlog/In Progress/Done, nessun agent configurato)
-- [ ] Il file di configurazione supporta i campi: `agentCommand`, `serverPort`, `columns` (array di nomi colonna)
-- [ ] Se il file di configurazione contiene JSON invalido, il sistema mostra un errore specifico indicando la riga del problema e non avvia il server
+- [x] Al primo avvio, se `config.json` non esiste, viene generato un file di configurazione con valori di default sensati (porta 3000, colonne Backlog/In Progress/Done, nessun agent configurato)
+- [x] Il file di configurazione supporta i campi: `agentCommand`, `serverPort`, `columns` (array di nomi colonna)
+- [x] Se il file di configurazione contiene JSON invalido, il sistema mostra un errore specifico indicando la riga del problema e non avvia il server
+
+**Status: DONE**
 
 ---
 
@@ -98,9 +100,11 @@ I want creare un task specificando titolo, descrizione e criteri di accettazione
 so that posso registrare rapidamente le attivita da svolgere nel backlog del mio progetto.
 
 **Acceptance Criteria**
-- [ ] Il task viene creato con un ID univoco incrementale, titolo obbligatorio, descrizione e criteri di accettazione opzionali, stato iniziale "Backlog", e timestamp di creazione
-- [ ] Se il titolo e vuoto o assente, il sistema rifiuta la creazione e restituisce un errore di validazione chiaro
-- [ ] Il task creato e immediatamente visibile sia via API che via CLI senza necessita di riavvio
+- [x] Il task viene creato con un ID univoco incrementale, titolo obbligatorio, descrizione e criteri di accettazione opzionali, stato iniziale "Backlog", e timestamp di creazione
+- [x] Se il titolo e vuoto o assente, il sistema rifiuta la creazione e restituisce un errore di validazione chiaro
+- [x] Il task creato e immediatamente visibile sia via API che via CLI senza necessita di riavvio
+
+**Status: DONE**
 
 ---
 

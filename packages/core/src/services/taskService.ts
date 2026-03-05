@@ -29,12 +29,13 @@ export class TaskService {
     const targetStatus: TaskStatus = input.status ?? 'backlog';
     const targetPriority = input.priority ?? 'medium';
 
-    // Calcola il displayId incrementale basato sul conteggio totale dei task
-    const countResult = this.database
-      .select({ totalCount: sql<number>`COUNT(*)` })
+    // Calcola il displayId incrementale basato sul MAX del numero estratto da display_id
+    // Usa MAX invece di COUNT per evitare duplicati quando i task vengono cancellati
+    const maxDisplayIdResult = this.database
+      .select({ maxNumber: sql<number>`MAX(CAST(SUBSTR(${tasksTable.displayId}, 6) AS INTEGER))` })
       .from(tasksTable)
       .get();
-    const nextDisplayNumber = (countResult?.totalCount ?? 0) + 1;
+    const nextDisplayNumber = (maxDisplayIdResult?.maxNumber ?? 0) + 1;
     const displayId = `TASK-${String(nextDisplayNumber).padStart(3, '0')}`;
 
     // Calcola la posizione come MAX(position) + 1 nella colonna di destinazione

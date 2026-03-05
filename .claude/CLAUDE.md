@@ -8,6 +8,10 @@
 
 ---
 
+## Backlog
+
+Quando lavori ad una user story del `docs/BACKLOG.md`, ricordati di segnarla come IN PROGRESS. Quando hai finito, metti check sui criteri di accettazione rispettati e mettila in status DONE
+
 ## Regola Mockup — Fonte di verita per la UI
 
 La directory `docs/mockup/src/app/components/` contiene il mockup funzionante della dashboard. Ogni componente UI di produzione (`packages/dashboard/`) **DEVE** replicare il mockup corrispondente.

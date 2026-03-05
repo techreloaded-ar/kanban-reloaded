@@ -11,6 +11,7 @@ interface KanbanBoardProps {
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
   onMoveTask?: (taskId: string, newStatus: TaskStatus, newPosition: number) => void;
   onReorderTasks?: (taskIds: string[], status: TaskStatus) => void;
+  onTaskClick?: (task: Task) => void;
 }
 
 type FilterOption = 'all' | TaskStatus;
@@ -28,7 +29,7 @@ const COLUMNS: { title: string; status: TaskStatus; colorClass: string }[] = [
   { title: 'Done', status: 'done', colorClass: 'bg-success' },
 ];
 
-export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriority, onMoveTask, onReorderTasks }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriority, onMoveTask, onReorderTasks, onTaskClick }: KanbanBoardProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
 
   const handleDragEnd = useCallback((result: DropResult) => {
@@ -149,6 +150,7 @@ export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriorit
                 colorClass={column.colorClass}
                 onDeleteTask={onDeleteTask}
                 onUpdatePriority={onUpdatePriority}
+                onTaskClick={onTaskClick}
               />
             ))}
           </div>

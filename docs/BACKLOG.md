@@ -13,16 +13,16 @@
 |---|---|---|---|---|
 | EP-001 | Infrastruttura Core e Storage | 2 | 6 | MVP |
 | EP-002 | Gestione Task | 4 | 9 | MVP |
-| EP-003 | Dashboard Kanban | 5 | 19 | MVP |
+| EP-003 | Dashboard Kanban | 9 | 33 | MVP |
 | EP-004 | Integrazione Agent AI | 5 | 17 | MVP |
 | EP-005 | Interfaccia CLI | 4 | 9 | MVP |
 | EP-006 | Organizzazione Avanzata Task | 4 | 16 | Growth |
 | EP-007 | Import/Export e Monitoraggio | 4 | 13 | Growth |
 | EP-008 | Estensibilita e Automazione Avanzata | 3 | 15 | Vision |
 
-**Total stories:** 31
-**Total story points:** 104
-**MVP stories:** 20 (60pt)
+**Total stories:** 35
+**Total story points:** 118
+**MVP stories:** 24 (74pt)
 
 ---
 
@@ -165,7 +165,7 @@ so that il team possa identificare immediatamente quali task sono piu urgenti e 
 ### EP-003: Dashboard Kanban
 
 > Realizzare l'interfaccia web visuale che permette di gestire i task in una board Kanban con interazione drag-and-drop.
-> **Scope:** MVP | **Stories:** 5 | **Story Points:** 19
+> **Scope:** MVP | **Stories:** 9 | **Story Points:** 33
 
 ---
 
@@ -224,14 +224,14 @@ so that posso organizzare visualmente la sequenza di lavorazione dei task per pr
 
 ---
 
-#### US-010: Aggiornamento real-time della board via WebSocket
+#### US-010: Sincronizzazione real-time della board via WebSocket
 
 **Epic:** EP-003 | **Priority:** HIGH | **Story Points:** 5
 
 **Story**
-As Sara (tech lead),
-I want che la board si aggiorni automaticamente quando un agent modifica lo stato di un task,
-so that posso vedere in tempo reale i progressi senza dover ricaricare la pagina manualmente.
+As Marco (sviluppatore indie),
+I want che qualsiasi modifica ai task (da dashboard, CLI, API o agent) si propaghi in tempo reale a tutti i client connessi,
+so that la board sia sempre la fonte di verita aggiornata e io possa usarla come pannello di controllo del progetto.
 
 **Acceptance Criteria**
 - [ ] Quando un task viene creato, modificato, spostato o eliminato (via API, CLI o agent), la dashboard riflette il cambiamento entro 500ms senza ricaricare la pagina
@@ -252,6 +252,77 @@ so that posso valutare rapidamente la distribuzione del lavoro senza contare man
 **Acceptance Criteria**
 - [ ] Ogni colonna mostra nell'intestazione il conteggio dei task contenuti (es. "Backlog (12)")
 - [ ] Il conteggio si aggiorna in tempo reale insieme agli spostamenti dei task
+
+---
+
+#### US-032: Layout dashboard con Sidebar e TopBar
+
+**Epic:** EP-003 | **Priority:** HIGH | **Story Points:** 5
+
+**Story**
+As Marco (sviluppatore indie),
+I want che la dashboard abbia un layout strutturato con una sidebar di navigazione laterale e una top bar con nome progetto e barra di ricerca,
+so that l'interfaccia sia organizzata, professionale e coerente con il mockup di riferimento.
+
+**Acceptance Criteria**
+- [x] La dashboard presenta una sidebar verticale a sinistra (larghezza 64px) con icone per navigare tra Board e Settings, e un avatar utente in fondo, come definito nel mockup (`docs/mockup/src/app/components/Sidebar.tsx`)
+- [x] Una top bar orizzontale in alto mostra il nome del progetto, una barra di ricerca task con icona, e il bottone "Nuovo Task", come definito nel mockup (`docs/mockup/src/app/components/TopBar.tsx`)
+- [x] Il layout complessivo (sidebar + topbar + area contenuto) e responsive e funziona correttamente su schermi da 1024px in su
+- [x] Le icone utilizzano la libreria Lucide React coerentemente con il mockup
+
+**Status: DONE**
+
+---
+
+#### US-033: Pannello dettaglio task
+
+**Epic:** EP-003 | **Priority:** HIGH | **Story Points:** 5
+
+**Story**
+As Marco (sviluppatore indie),
+I want che cliccando su una card nella board si apra un pannello laterale con tutti i dettagli del task,
+so that posso visualizzare descrizione, criteri di accettazione, stato dell'agent e log senza uscire dalla board.
+
+**Acceptance Criteria**
+- [x] Cliccando su una task card nella board, si apre un pannello laterale destro (larghezza 400px) con animazione slide-in, come definito nel mockup (`docs/mockup/src/app/components/TaskDetailPanel.tsx`)
+- [x] Il pannello mostra: displayId, titolo, badge priorita, badge stato, data di creazione, descrizione completa, criteri di accettazione, sezione Agent AI (stato running/idle, tempo di esecuzione, log output)
+- [x] Dal pannello e possibile spostare il task in un altro stato tramite un selettore a tendina ed eliminare il task tramite un bottone dedicato
+- [x] Il pannello si chiude cliccando il bottone X o cliccando fuori dal pannello
+
+**Status: DONE**
+
+---
+
+#### US-034: Tema scuro con toggle nella dashboard
+
+**Epic:** EP-003 | **Priority:** MEDIUM | **Story Points:** 2
+
+**Story**
+As Marco (sviluppatore indie),
+I want poter passare dal tema chiaro al tema scuro nella dashboard con un singolo click,
+so that posso usare la board in condizioni di scarsa luminosita senza affaticare la vista.
+
+**Acceptance Criteria**
+- [ ] La top bar include un bottone toggle (icona sole/luna) che alterna tra tema chiaro e tema scuro
+- [ ] Il tema scuro utilizza le variabili CSS gia definite nella classe `.dark` del file `theme.css` (background `#1A1A2E`, card `#16213E`, ecc.)
+- [ ] La preferenza del tema viene salvata nel localStorage del browser e ripristinata automaticamente al caricamento successivo della dashboard
+
+---
+
+#### US-035: Allineamento visivo dei componenti board al mockup
+
+**Epic:** EP-003 | **Priority:** MEDIUM | **Story Points:** 2
+
+**Story**
+As Marco (sviluppatore indie),
+I want che le colonne della board e le task card siano visivamente identiche al mockup di riferimento,
+so that la dashboard abbia un aspetto curato e coerente con il design system definito.
+
+**Acceptance Criteria**
+- [ ] Le colonne della board hanno bordo, header separato con separatore orizzontale, pallino colorato, contatore task e bottone "+" per aggiungere task direttamente nella colonna, come nel mockup (`docs/mockup/src/app/components/KanbanColumn.tsx`)
+- [ ] Le task card mostrano displayId, titolo, badge priorita e descrizione troncata a 2 righe, con effetto hover (bordo primary, ombra), come nel mockup (`docs/mockup/src/app/components/TaskCard.tsx`)
+- [ ] Le animazioni di ingresso della board (fade-in + slide-up) e del drag-and-drop (ombra, rotazione leggera, scala) replicano quelle del mockup
+- [ ] I componenti utilizzano esclusivamente le variabili CSS del design system definite in `theme.css`, senza colori hardcoded
 
 ---
 

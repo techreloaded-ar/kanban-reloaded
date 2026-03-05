@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import type { Task, TaskPriority } from '../types.js';
 
@@ -12,6 +13,7 @@ interface TaskCardProps {
   index: number;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
+  onTaskClick?: (task: Task) => void;
 }
 
 const PRIORITY_LABELS: Record<TaskPriority, string> = {
@@ -26,7 +28,11 @@ const PRIORITY_CLASSES: Record<TaskPriority, string> = {
   low: 'bg-info text-white',
 };
 
-export function TaskCard({ task, index, onDeleteTask, onUpdatePriority }: TaskCardProps) {
+const DRAG_THRESHOLD_PX = 5;
+
+export function TaskCard({ task, index, onDeleteTask, onUpdatePriority, onTaskClick }: TaskCardProps) {
+  const mouseDownPosition = useRef<{ x: number; y: number } | null>(null);
+
   return (
     <Draggable draggableId={task.id} index={index}>
       {(provided, snapshot) => (
@@ -34,7 +40,19 @@ export function TaskCard({ task, index, onDeleteTask, onUpdatePriority }: TaskCa
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`group relative rounded-lg border border-border bg-card p-3 shadow-sm ${snapshot.isDragging ? 'shadow-lg ring-2 ring-primary/20' : ''}`}
+          onMouseDown={(event) => {
+            mouseDownPosition.current = { x: event.clientX, y: event.clientY };
+          }}
+          onClick={(event) => {
+            if (snapshot.isDragging) return;
+            if (mouseDownPosition.current !== null) {
+              const deltaX = Math.abs(event.clientX - mouseDownPosition.current.x);
+              const deltaY = Math.abs(event.clientY - mouseDownPosition.current.y);
+              if (deltaX > DRAG_THRESHOLD_PX || deltaY > DRAG_THRESHOLD_PX) return;
+            }
+            onTaskClick?.(task);
+          }}
+          className={`group relative cursor-pointer rounded-lg border border-border bg-card p-3 shadow-sm transition-colors hover:border-primary/50 hover:shadow-md ${snapshot.isDragging ? 'shadow-lg ring-2 ring-primary/20' : ''}`}
         >
           <div className="mb-2 flex items-center justify-between">
             <span className="font-mono text-xs text-muted-foreground">

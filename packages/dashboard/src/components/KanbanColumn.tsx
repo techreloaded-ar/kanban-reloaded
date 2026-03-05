@@ -9,6 +9,7 @@ interface KanbanColumnProps {
   colorClass: string;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
+  onTaskClick?: (task: Task) => void;
 }
 
 const EMPTY_STATE_MESSAGES: Record<TaskStatus, string> = {
@@ -17,7 +18,7 @@ const EMPTY_STATE_MESSAGES: Record<TaskStatus, string> = {
   done: 'Nessun task completato',
 };
 
-export function KanbanColumn({ title, status, tasks, colorClass, onDeleteTask, onUpdatePriority }: KanbanColumnProps) {
+export function KanbanColumn({ title, status, tasks, colorClass, onDeleteTask, onUpdatePriority, onTaskClick }: KanbanColumnProps) {
   return (
     <div className="flex min-w-[300px] flex-1 flex-col rounded-lg bg-muted/50 p-3">
       <div className="mb-3 flex items-center gap-2">
@@ -39,7 +40,7 @@ export function KanbanColumn({ title, status, tasks, colorClass, onDeleteTask, o
                 {EMPTY_STATE_MESSAGES[status]}
               </p>
             ) : (
-              tasks.map((task, index) => <TaskCard key={task.id} task={task} index={index} onDeleteTask={onDeleteTask} onUpdatePriority={onUpdatePriority} />)
+              tasks.map((task, index) => <TaskCard key={task.id} task={task} index={index} onDeleteTask={onDeleteTask} onUpdatePriority={onUpdatePriority} onTaskClick={onTaskClick} />)
             )}
             {provided.placeholder}
           </div>

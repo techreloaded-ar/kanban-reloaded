@@ -1,13 +1,39 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { AnimatePresence } from 'motion/react';
 import type { Task, TaskPriority, TaskStatus } from './types.js';
 import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks } from './api/taskApi.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
+import { Sidebar } from './components/Sidebar.js';
+import { TopBar } from './components/TopBar.js';
+import { TaskDetailPanel } from './components/TaskDetailPanel.js';
+
+function getInitialDarkMode(): boolean {
+  const stored = localStorage.getItem('kanban-reloaded-dark-mode');
+  if (stored !== null) {
+    return stored === 'true';
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
 
 export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [currentView, setCurrentView] = useState<'board' | 'settings'>('board');
+  const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+
+  // Derive selectedTask from tasks list — avoids stale state and infinite re-render loops
+  const selectedTask = useMemo(() => {
+    if (selectedTaskId === null) return null;
+    return tasks.find(task => task.id === selectedTaskId) ?? null;
+  }, [tasks, selectedTaskId]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    localStorage.setItem('kanban-reloaded-dark-mode', String(isDarkMode));
+  }, [isDarkMode]);
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -52,12 +78,15 @@ export function App() {
   const handleDeleteTask = useCallback(async (taskId: string) => {
     try {
       await deleteTask(taskId);
+      if (selectedTaskId === taskId) {
+        setSelectedTaskId(null);
+      }
       await fetchTasks();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       console.error(`Errore nell'eliminazione del task: ${message}`);
     }
-  }, [fetchTasks]);
+  }, [fetchTasks, selectedTaskId]);
 
   const handleMoveTask = useCallback(async (taskId: string, newStatus: TaskStatus, newPosition: number) => {
     const previousTasks = tasks;
@@ -77,8 +106,17 @@ export function App() {
     }
   }, [tasks, fetchTasks]);
 
+  const handleMoveTaskFromPanel = useCallback(async (taskId: string, newStatus: TaskStatus) => {
+    try {
+      await updateTask(taskId, { status: newStatus });
+      await fetchTasks();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      console.error(`Errore nello spostamento del task: ${message}`);
+    }
+  }, [fetchTasks]);
+
   const handleReorderTasks = useCallback(async (taskIds: string[], status: TaskStatus) => {
-    // Optimistic update
     const previousTasks = tasks;
     setTasks(currentTasks => {
       return currentTasks.map(task => {
@@ -100,34 +138,83 @@ export function App() {
     }
   }, [tasks, fetchTasks]);
 
-  return (
-    <div className="flex min-h-screen flex-col">
-      {/* Header */}
-      <header className="border-b border-border bg-card px-6 py-4">
-        <h1 className="text-xl font-semibold text-foreground">Kanban Reloaded</h1>
-      </header>
+  const handleTaskClick = useCallback((task: Task) => {
+    setSelectedTaskId(task.id);
+  }, []);
 
-      {/* Main content */}
-      <main className="flex-1 p-6">
-        {loadingError !== null ? (
-          <div className="flex items-center justify-center p-8">
-            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center">
-              <p className="text-sm font-medium text-destructive">
-                Errore di connessione
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{loadingError}</p>
-              <button
-                onClick={() => void fetchTasks()}
-                className="mt-3 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
-              >
-                Riprova
-              </button>
+  const handleCloseDetailPanel = useCallback(() => {
+    setSelectedTaskId(null);
+  }, []);
+
+  const handleToggleTheme = useCallback(() => {
+    setIsDarkMode(previous => !previous);
+  }, []);
+
+  return (
+    <div className="flex h-screen bg-background text-foreground">
+      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
+
+      <div className="flex flex-1 flex-col min-w-0">
+        <TopBar
+          projectName="Kanban Reloaded"
+          onNewTask={() => setIsCreateModalOpen(true)}
+          isDarkMode={isDarkMode}
+          onToggleTheme={handleToggleTheme}
+        />
+
+        <main className="flex-1 overflow-auto p-6">
+          {loadingError !== null ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center">
+                <p className="text-sm font-medium text-destructive">
+                  Errore di connessione
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{loadingError}</p>
+                <button
+                  onClick={() => void fetchTasks()}
+                  className="mt-3 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+                >
+                  Riprova
+                </button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <KanbanBoard tasks={tasks} onCreateTask={() => setIsCreateModalOpen(true)} onDeleteTask={(taskId) => void handleDeleteTask(taskId)} onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)} onMoveTask={(taskId, newStatus, newPosition) => void handleMoveTask(taskId, newStatus, newPosition)} onReorderTasks={(taskIds, status) => void handleReorderTasks(taskIds, status)} />
+          ) : currentView === 'board' ? (
+            <KanbanBoard
+              tasks={tasks}
+              onCreateTask={() => setIsCreateModalOpen(true)}
+              onDeleteTask={(taskId) => void handleDeleteTask(taskId)}
+              onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)}
+              onMoveTask={(taskId, newStatus, newPosition) => void handleMoveTask(taskId, newStatus, newPosition)}
+              onReorderTasks={(taskIds, status) => void handleReorderTasks(taskIds, status)}
+              onTaskClick={handleTaskClick}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-muted-foreground">Impostazioni (in arrivo)</p>
+            </div>
+          )}
+        </main>
+      </div>
+
+      <AnimatePresence>
+        {selectedTask !== null && (
+          <div
+            key="task-detail-overlay"
+            className="fixed inset-0 z-40 bg-black/20"
+            onClick={handleCloseDetailPanel}
+            aria-hidden="true"
+          />
         )}
-      </main>
+        {selectedTask !== null && (
+          <TaskDetailPanel
+            key="task-detail-panel"
+            task={selectedTask}
+            onClose={handleCloseDetailPanel}
+            onDelete={(taskId) => void handleDeleteTask(taskId)}
+            onMoveTask={handleMoveTaskFromPanel}
+          />
+        )}
+      </AnimatePresence>
 
       <CreateTaskModal
         isOpen={isCreateModalOpen}

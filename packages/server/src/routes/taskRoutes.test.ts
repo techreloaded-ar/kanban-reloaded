@@ -184,3 +184,83 @@ describe('POST /api/tasks', () => {
     expect(tasks[0].status).toBe('backlog');
   });
 });
+
+describe('PATCH /api/tasks/:id', () => {
+  it('aggiorna il titolo di un task esistente e restituisce 200', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Titolo originale' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { title: 'Titolo aggiornato' },
+    });
+
+    expect(patchResponse.statusCode).toBe(200);
+    const updatedTask = JSON.parse(patchResponse.payload);
+    expect(updatedTask.title).toBe('Titolo aggiornato');
+    expect(updatedTask.updatedAt).not.toBeNull();
+  });
+
+  it('restituisce 404 per un task ID inesistente', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const response = await server.inject({
+      method: 'PATCH',
+      url: '/api/tasks/00000000-0000-0000-0000-000000000000',
+      payload: { title: 'Fantasma' },
+    });
+
+    expect(response.statusCode).toBe(404);
+    const body = JSON.parse(response.payload);
+    expect(body.error).toContain('Task non trovato');
+  });
+
+  it('restituisce 400 quando il body non contiene alcun campo da aggiornare', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task esistente' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: {},
+    });
+
+    expect(patchResponse.statusCode).toBe(400);
+    const body = JSON.parse(patchResponse.payload);
+    expect(body.error).toBeDefined();
+  });
+
+  it('restituisce 400 quando il titolo e una stringa vuota', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const createResponse = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task esistente' },
+    });
+    const createdTask = JSON.parse(createResponse.payload);
+
+    const patchResponse = await server.inject({
+      method: 'PATCH',
+      url: `/api/tasks/${createdTask.id}`,
+      payload: { title: '' },
+    });
+
+    expect(patchResponse.statusCode).toBe(400);
+    const body = JSON.parse(patchResponse.payload);
+    expect(body.error).toContain('title');
+  });
+});

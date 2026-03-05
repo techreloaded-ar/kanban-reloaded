@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { eq, sql, desc } from 'drizzle-orm';
 import type { DatabaseInstance } from '../storage/database.js';
 import { tasksTable } from '../models/schema.js';
-import type { Task, CreateTaskInput, TaskStatus } from '../models/types.js';
+import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../models/types.js';
 
 /**
  * Servizio per la gestione delle task (CRUD).
@@ -57,6 +57,7 @@ export class TaskService {
       agentRunning: false,
       agentLog: null,
       createdAt: new Date().toISOString(),
+      updatedAt: null,
       executionTime: null,
       position: input.position ?? nextPosition,
     };
@@ -87,5 +88,59 @@ export class TaskService {
       .where(eq(tasksTable.status, status))
       .orderBy(tasksTable.position)
       .all() as Task[];
+  }
+
+  /**
+   * Cerca un task per UUID.
+   * Ritorna undefined se il task non esiste.
+   */
+  getTaskById(taskId: string): Task | undefined {
+    return this.database
+      .select()
+      .from(tasksTable)
+      .where(eq(tasksTable.id, taskId))
+      .get() as Task | undefined;
+  }
+
+  /**
+   * Aggiorna parzialmente un task esistente.
+   * Solo i campi definiti (non undefined) in input vengono sovrascritti.
+   * Il campo updatedAt viene impostato automaticamente all'istante corrente.
+   *
+   * @throws Error se il task non esiste
+   */
+  updateTask(taskId: string, input: UpdateTaskInput): Task {
+    const existingTask = this.getTaskById(taskId);
+    if (!existingTask) {
+      throw new Error(`Task non trovato con ID: ${taskId}`);
+    }
+
+    const fieldsToUpdate: Partial<typeof tasksTable.$inferInsert> = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (input.title !== undefined) {
+      const trimmedTitle = input.title.trim();
+      if (trimmedTitle.length === 0) {
+        throw new Error('Il titolo del task non puo essere vuoto');
+      }
+      fieldsToUpdate.title = trimmedTitle;
+    }
+    if (input.description !== undefined) fieldsToUpdate.description = input.description.trim();
+    if (input.acceptanceCriteria !== undefined) fieldsToUpdate.acceptanceCriteria = input.acceptanceCriteria.trim();
+    if (input.priority !== undefined) fieldsToUpdate.priority = input.priority;
+    if (input.status !== undefined) fieldsToUpdate.status = input.status;
+    if (input.agentRunning !== undefined) fieldsToUpdate.agentRunning = input.agentRunning;
+    if (input.agentLog !== undefined) fieldsToUpdate.agentLog = input.agentLog;
+    if (input.executionTime !== undefined) fieldsToUpdate.executionTime = input.executionTime;
+    if (input.position !== undefined) fieldsToUpdate.position = input.position;
+
+    this.database
+      .update(tasksTable)
+      .set(fieldsToUpdate)
+      .where(eq(tasksTable.id, taskId))
+      .run();
+
+    return this.getTaskById(taskId) as Task;
   }
 }

@@ -13,6 +13,7 @@ export interface Task {
   agentRunning: boolean;
   agentLog: string | null;
   createdAt: string;
+  updatedAt: string | null;
   executionTime: number | null;
   position: number;
 }

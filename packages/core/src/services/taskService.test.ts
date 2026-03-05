@@ -120,6 +120,105 @@ describe('TaskService', () => {
     expect(task.acceptanceCriteria).toBe('Criteri con spazi');
   });
 
+  describe('getTaskById', () => {
+    it('ritorna il task corretto dato un UUID valido', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const createdTask = taskService.createTask({ title: 'Task da cercare' });
+
+      const foundTask = taskService.getTaskById(createdTask.id);
+
+      expect(foundTask).toBeDefined();
+      expect(foundTask!.id).toBe(createdTask.id);
+      expect(foundTask!.title).toBe('Task da cercare');
+      expect(foundTask!.displayId).toBe(createdTask.displayId);
+    });
+
+    it('ritorna undefined per UUID inesistente', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const foundTask = taskService.getTaskById('00000000-0000-0000-0000-000000000000');
+
+      expect(foundTask).toBeUndefined();
+    });
+  });
+
+  describe('updateTask', () => {
+    it('aggiorna solo il titolo lasciando invariati gli altri campi', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const originalTask = taskService.createTask({
+        title: 'Titolo originale',
+        description: 'Descrizione originale',
+        acceptanceCriteria: 'Criteri originali',
+        priority: 'high',
+      });
+
+      const updatedTask = taskService.updateTask(originalTask.id, { title: 'Titolo modificato' });
+
+      expect(updatedTask.title).toBe('Titolo modificato');
+      expect(updatedTask.description).toBe('Descrizione originale');
+      expect(updatedTask.acceptanceCriteria).toBe('Criteri originali');
+      expect(updatedTask.priority).toBe('high');
+      expect(updatedTask.status).toBe('backlog');
+      expect(updatedTask.position).toBe(originalTask.position);
+    });
+
+    it('aggiorna solo la descrizione lasciando invariati gli altri campi', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const originalTask = taskService.createTask({ title: 'Task immutabile' });
+
+      const updatedTask = taskService.updateTask(originalTask.id, { description: 'Nuova descrizione' });
+
+      expect(updatedTask.title).toBe('Task immutabile');
+      expect(updatedTask.description).toBe('Nuova descrizione');
+    });
+
+    it('aggiorna solo i criteri di accettazione', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const originalTask = taskService.createTask({ title: 'Task con criteri' });
+
+      const updatedTask = taskService.updateTask(originalTask.id, {
+        acceptanceCriteria: 'Nuovi criteri di accettazione',
+      });
+
+      expect(updatedTask.title).toBe('Task con criteri');
+      expect(updatedTask.acceptanceCriteria).toBe('Nuovi criteri di accettazione');
+    });
+
+    it('aggiorna piu campi contemporaneamente', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const originalTask = taskService.createTask({ title: 'Task multiplo' });
+
+      const updatedTask = taskService.updateTask(originalTask.id, {
+        title: 'Titolo aggiornato',
+        description: 'Descrizione aggiornata',
+        acceptanceCriteria: 'Criteri aggiornati',
+      });
+
+      expect(updatedTask.title).toBe('Titolo aggiornato');
+      expect(updatedTask.description).toBe('Descrizione aggiornata');
+      expect(updatedTask.acceptanceCriteria).toBe('Criteri aggiornati');
+    });
+
+    it('imposta automaticamente updatedAt come stringa ISO valida', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+      const originalTask = taskService.createTask({ title: 'Task timestamp' });
+      expect(originalTask.updatedAt).toBeNull();
+
+      const updatedTask = taskService.updateTask(originalTask.id, { title: 'Aggiornato' });
+
+      expect(updatedTask.updatedAt).not.toBeNull();
+      expect(new Date(updatedTask.updatedAt!).toISOString()).toBe(updatedTask.updatedAt);
+    });
+
+    it('lancia errore se il task ID non esiste', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      expect(() =>
+        taskService.updateTask('00000000-0000-0000-0000-000000000000', { title: 'Fantasma' }),
+      ).toThrowError(/Task non trovato/);
+    });
+  });
+
   it('calcola posizioni indipendenti per colonna', () => {
     const { taskService } = createTemporaryProjectWithDatabase();
 

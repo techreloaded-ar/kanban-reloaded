@@ -7,7 +7,7 @@ import {
   ConfigService,
   TaskService,
 } from '@kanban-reloaded/core';
-import type { TaskPriority } from '@kanban-reloaded/core';
+import type { TaskPriority, UpdateTaskInput } from '@kanban-reloaded/core';
 import { createServer, startServer } from '@kanban-reloaded/server';
 
 const PRIORITY_MAP: Record<string, TaskPriority> = {
@@ -74,6 +74,79 @@ program
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(`Errore nella creazione del task: ${message}`);
+        process.exitCode = 1;
+      } finally {
+        closeConnection();
+      }
+    },
+  );
+
+program
+  .command('edit')
+  .description('Modifica un task esistente')
+  .argument('<id>', 'ID del task (es. TASK-001 o UUID)')
+  .option('-t, --title <text>', 'Nuovo titolo')
+  .option('-d, --description <text>', 'Nuova descrizione')
+  .option(
+    '-a, --acceptance-criteria <text>',
+    'Nuovi criteri di accettazione',
+  )
+  .action(
+    (
+      taskIdentifier: string,
+      options: {
+        title?: string;
+        description?: string;
+        acceptanceCriteria?: string;
+      },
+    ) => {
+      if (options.title === undefined && options.description === undefined && options.acceptanceCriteria === undefined) {
+        console.error(
+          'Specifica almeno un campo da modificare (--title, --description, --acceptance-criteria)',
+        );
+        process.exitCode = 2;
+        return;
+      }
+
+      const projectDirectoryPath = discoverProjectDirectory();
+      if (!projectDirectoryPath) {
+        console.error(
+          'Nessun progetto Kanban Reloaded trovato. Esegui il comando dalla root del repository o da una sotto-directory.',
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      const { database, closeConnection } = initializeDatabase(projectDirectoryPath);
+      try {
+        const taskService = new TaskService(database);
+
+        // Cerca per displayId (TASK-xxx) o per UUID
+        const isDisplayId = taskIdentifier.toUpperCase().startsWith('TASK-');
+        const foundTask = isDisplayId
+          ? taskService.getAllTasks().find(
+              (task) => task.displayId.toUpperCase() === taskIdentifier.toUpperCase(),
+            )
+          : taskService.getTaskById(taskIdentifier);
+
+        if (!foundTask) {
+          console.error(
+            `Task '${taskIdentifier}' non trovato. Usa 'kanban-reloaded list' per vedere i task disponibili.`,
+          );
+          process.exitCode = 1;
+          return;
+        }
+
+        const fieldsToUpdate: UpdateTaskInput = {};
+        if (options.title !== undefined) fieldsToUpdate.title = options.title;
+        if (options.description !== undefined) fieldsToUpdate.description = options.description;
+        if (options.acceptanceCriteria !== undefined) fieldsToUpdate.acceptanceCriteria = options.acceptanceCriteria;
+
+        const updatedTask = taskService.updateTask(foundTask.id, fieldsToUpdate);
+        console.log(`Task aggiornato: ${updatedTask.displayId} — ${updatedTask.title}`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Errore nella modifica del task: ${message}`);
         process.exitCode = 1;
       } finally {
         closeConnection();

@@ -11,6 +11,7 @@ export const tasksTable = sqliteTable('tasks', {
   agentRunning: integer('agent_running', { mode: 'boolean' }).notNull().default(false),
   agentLog: text('agent_log'),
   createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at'),
   executionTime: real('execution_time'),
   position: real('position').notNull().default(0),
 });

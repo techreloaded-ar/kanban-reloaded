@@ -17,6 +17,7 @@ const CREATE_TASKS_TABLE_SQL = `
     agent_running INTEGER NOT NULL DEFAULT 0,
     agent_log TEXT,
     created_at TEXT NOT NULL,
+    updated_at TEXT,
     execution_time REAL,
     position REAL NOT NULL DEFAULT 0
   )

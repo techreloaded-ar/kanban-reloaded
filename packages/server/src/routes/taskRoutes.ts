@@ -16,6 +16,16 @@ interface CreateTaskRequestBody {
   acceptanceCriteria?: string;
 }
 
+interface TaskRouteParams {
+  id: string;
+}
+
+interface UpdateTaskRequestBody {
+  title?: string;
+  description?: string;
+  acceptanceCriteria?: string;
+}
+
 /**
  * Registra le route REST per la gestione dei task.
  * Le route vengono chiuse sul taskService passato tramite closure.
@@ -69,6 +79,51 @@ export function registerTaskRoutes(
       });
 
       return reply.status(201).send(createdTask);
+    },
+  );
+
+  server.patch<{ Params: TaskRouteParams; Body: UpdateTaskRequestBody }>(
+    '/api/tasks/:id',
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body as UpdateTaskRequestBody | null;
+
+      if (!body) {
+        return reply.status(400).send({
+          error: 'Il body della richiesta e obbligatorio',
+        });
+      }
+
+      const hasTitle = body.title !== undefined;
+      const hasDescription = body.description !== undefined;
+      const hasAcceptanceCriteria = body.acceptanceCriteria !== undefined;
+
+      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria) {
+        return reply.status(400).send({
+          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria',
+        });
+      }
+
+      if (hasTitle && body.title!.trim().length === 0) {
+        return reply.status(400).send({
+          error: 'Il campo title non puo essere vuoto',
+        });
+      }
+
+      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string } = {};
+      if (hasTitle) updateFields.title = body.title!;
+      if (hasDescription) updateFields.description = body.description!;
+      if (hasAcceptanceCriteria) updateFields.acceptanceCriteria = body.acceptanceCriteria!;
+
+      try {
+        const updatedTask = taskService.updateTask(id, updateFields);
+        return reply.send(updatedTask);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Task non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
     },
   );
 }

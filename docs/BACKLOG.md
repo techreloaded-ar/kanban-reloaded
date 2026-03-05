@@ -118,9 +118,11 @@ I want modificare il titolo, la descrizione o i criteri di accettazione di un ta
 so that posso raffinare e aggiornare i task man mano che i requisiti diventano piu chiari.
 
 **Acceptance Criteria**
-- [ ] Dato un task ID valido, il sistema aggiorna i campi specificati (titolo, descrizione, criteri di accettazione) preservando i campi non modificati
-- [ ] Se il task ID non esiste, il sistema restituisce un errore 404 con un messaggio comprensibile
-- [ ] Il timestamp di ultima modifica viene aggiornato automaticamente a ogni modifica
+- [x] Dato un task ID valido, il sistema aggiorna i campi specificati (titolo, descrizione, criteri di accettazione) preservando i campi non modificati
+- [x] Se il task ID non esiste, il sistema restituisce un errore 404 con un messaggio comprensibile
+- [x] Il timestamp di ultima modifica viene aggiornato automaticamente a ogni modifica
+
+**Status: DONE**
 
 ---
 

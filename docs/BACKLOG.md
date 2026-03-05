@@ -363,9 +363,11 @@ I want che l'agent riceva automaticamente il titolo, la descrizione e i criteri 
 so that l'agent abbia tutto il contesto necessario per svolgere il lavoro senza che io debba copiare e incollare informazioni.
 
 **Acceptance Criteria**
-- [ ] Il comando dell'agent supporta placeholder nel template (es. `{{title}}`, `{{description}}`, `{{acceptance_criteria}}`) che vengono sostituiti con i valori effettivi del task prima dell'esecuzione
-- [ ] Se la descrizione o i criteri di accettazione sono vuoti, i placeholder vengono sostituiti con stringa vuota senza causare errori nel comando
-- [ ] I caratteri speciali nel contenuto del task (apici, virgolette, newline) vengono correttamente escaped per evitare command injection
+- [x] Il comando dell'agent supporta placeholder nel template (es. `{{title}}`, `{{description}}`, `{{acceptance_criteria}}`) che vengono sostituiti con i valori effettivi del task prima dell'esecuzione
+- [x] Se la descrizione o i criteri di accettazione sono vuoti, i placeholder vengono sostituiti con stringa vuota senza causare errori nel comando
+- [x] I caratteri speciali nel contenuto del task (apici, virgolette, newline) vengono correttamente escaped per evitare command injection
+
+**Status: DONE**
 
 ---
 

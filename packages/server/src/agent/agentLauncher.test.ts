@@ -84,6 +84,16 @@ describe('sanitizeShellValue', () => {
   it('rimuove tutti i metacaratteri in una stringa complessa', () => {
     expect(sanitizeShellValue('`$(){}|;&<>')).toBe('');
   });
+
+  it('rimuove i caratteri newline e carriage return dal valore', () => {
+    expect(sanitizeShellValue('titolo\ncon\rnewline')).toBe('titoloconnewline');
+  });
+
+  it('rimuove le virgolette singole e doppie dal valore', () => {
+    expect(sanitizeShellValue("test 'apici' e \"virgolette\"")).toBe(
+      'test apici e virgolette',
+    );
+  });
 });
 
 describe('AgentLauncher', () => {

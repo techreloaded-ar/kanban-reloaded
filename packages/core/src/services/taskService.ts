@@ -177,4 +177,43 @@ export class TaskService {
       .where(sql`LOWER(${tasksTable.displayId}) = LOWER(${displayId})`)
       .get() as Task | undefined;
   }
+
+  /**
+   * Riordina i task all'interno di una colonna (stesso status).
+   * L'array taskIds rappresenta l'ordine desiderato: il primo elemento ottiene position 0,
+   * il secondo position 1, e cosi via.
+   *
+   * Ogni task viene anche aggiornato con updatedAt all'istante corrente.
+   *
+   * @throws Error se un task ID non esiste nel database
+   * @throws Error se un task non appartiene alla colonna (status) specificata
+   */
+  reorderTasksInColumn(taskIds: string[], status: TaskStatus): void {
+    const currentTimestamp = new Date().toISOString();
+
+    // Valida tutti i task prima di eseguire qualsiasi aggiornamento
+    for (const taskId of taskIds) {
+      const existingTask = this.getTaskById(taskId);
+      if (!existingTask) {
+        throw new Error(`Task non trovato con ID: ${taskId}`);
+      }
+      if (existingTask.status !== status) {
+        throw new Error(
+          `Il task ${taskId} appartiene alla colonna "${existingTask.status}" e non a "${status}"`,
+        );
+      }
+    }
+
+    // Aggiorna la posizione di ogni task in base all'indice nell'array
+    for (let index = 0; index < taskIds.length; index++) {
+      this.database
+        .update(tasksTable)
+        .set({
+          position: index,
+          updatedAt: currentTimestamp,
+        })
+        .where(eq(tasksTable.id, taskIds[index]))
+        .run();
+    }
+  }
 }

@@ -28,6 +28,11 @@ interface UpdateTaskRequestBody {
   status?: string;
 }
 
+interface ReorderTasksRequestBody {
+  taskIds?: string[];
+  status?: string;
+}
+
 interface DeleteTaskQuerystring {
   force?: string;
 }
@@ -85,6 +90,42 @@ export function registerTaskRoutes(
       });
 
       return reply.status(201).send(createdTask);
+    },
+  );
+
+  server.put<{ Body: ReorderTasksRequestBody }>(
+    '/api/tasks/reorder',
+    async (request, reply) => {
+      const body = request.body as ReorderTasksRequestBody | null;
+
+      if (!body || !Array.isArray(body.taskIds) || body.taskIds.length === 0) {
+        return reply.status(400).send({
+          error: 'Il campo taskIds e obbligatorio e deve essere un array non vuoto di stringhe',
+        });
+      }
+
+      const hasNonStringElement = body.taskIds.some(
+        (element) => typeof element !== 'string',
+      );
+      if (hasNonStringElement) {
+        return reply.status(400).send({
+          error: 'Ogni elemento di taskIds deve essere una stringa',
+        });
+      }
+
+      if (!body.status || !VALID_STATUSES.has(body.status)) {
+        return reply.status(400).send({
+          error: `Status non valido: '${body.status ?? ''}'.  Valori ammessi: backlog, in-progress, done`,
+        });
+      }
+
+      try {
+        taskService.reorderTasksInColumn(body.taskIds, body.status as TaskStatus);
+        return reply.send({ success: true });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Errore durante il riordinamento dei task';
+        return reply.status(400).send({ error: errorMessage });
+      }
     },
   );
 

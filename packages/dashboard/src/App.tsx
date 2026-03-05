@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Task, TaskPriority, TaskStatus } from './types.js';
-import { getAllTasks, createTask, updateTask, deleteTask } from './api/taskApi.js';
+import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks } from './api/taskApi.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
 
@@ -77,6 +77,29 @@ export function App() {
     }
   }, [tasks, fetchTasks]);
 
+  const handleReorderTasks = useCallback(async (taskIds: string[], status: TaskStatus) => {
+    // Optimistic update
+    const previousTasks = tasks;
+    setTasks(currentTasks => {
+      return currentTasks.map(task => {
+        const newIndex = taskIds.indexOf(task.id);
+        if (newIndex !== -1) {
+          return { ...task, position: newIndex };
+        }
+        return task;
+      });
+    });
+
+    try {
+      await reorderTasks(taskIds, status);
+      await fetchTasks();
+    } catch (error: unknown) {
+      setTasks(previousTasks);
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      console.error(`Errore nel riordinamento: ${message}`);
+    }
+  }, [tasks, fetchTasks]);
+
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
@@ -102,7 +125,7 @@ export function App() {
             </div>
           </div>
         ) : (
-          <KanbanBoard tasks={tasks} onCreateTask={() => setIsCreateModalOpen(true)} onDeleteTask={(taskId) => void handleDeleteTask(taskId)} onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)} onMoveTask={(taskId, newStatus, newPosition) => void handleMoveTask(taskId, newStatus, newPosition)} />
+          <KanbanBoard tasks={tasks} onCreateTask={() => setIsCreateModalOpen(true)} onDeleteTask={(taskId) => void handleDeleteTask(taskId)} onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)} onMoveTask={(taskId, newStatus, newPosition) => void handleMoveTask(taskId, newStatus, newPosition)} onReorderTasks={(taskIds, status) => void handleReorderTasks(taskIds, status)} />
         )}
       </main>
 

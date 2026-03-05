@@ -216,9 +216,11 @@ I want riordinare i task all'interno della stessa colonna tramite drag-and-drop,
 so that posso organizzare visualmente la sequenza di lavorazione dei task per priorita o dipendenze.
 
 **Acceptance Criteria**
-- [ ] L'utente puo trascinare una card verso l'alto o il basso all'interno della stessa colonna per cambiarne la posizione; il nuovo ordine viene persistito nel database
-- [ ] L'ordinamento viene preservato tra sessioni (chiusura e riapertura della dashboard)
-- [ ] Il riordinamento funziona correttamente anche con colonne contenenti piu di 20 task
+- [x] L'utente puo trascinare una card verso l'alto o il basso all'interno della stessa colonna per cambiarne la posizione; il nuovo ordine viene persistito nel database
+- [x] L'ordinamento viene preservato tra sessioni (chiusura e riapertura della dashboard)
+- [x] Il riordinamento funziona correttamente anche con colonne contenenti piu di 20 task
+
+**Status: DONE**
 
 ---
 

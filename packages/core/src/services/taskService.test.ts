@@ -300,6 +300,121 @@ describe('TaskService', () => {
     });
   });
 
+  describe('reorderTasksInColumn', () => {
+    it('riordina 3 task nella colonna backlog e verifica le nuove posizioni', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const taskA = taskService.createTask({ title: 'Task A' });
+      const taskB = taskService.createTask({ title: 'Task B' });
+      const taskC = taskService.createTask({ title: 'Task C' });
+
+      // Riordina: C, A, B
+      taskService.reorderTasksInColumn([taskC.id, taskA.id, taskB.id], 'backlog');
+
+      const reorderedTasks = taskService.getTasksByStatus('backlog');
+      expect(reorderedTasks[0].id).toBe(taskC.id);
+      expect(reorderedTasks[0].position).toBe(0);
+      expect(reorderedTasks[1].id).toBe(taskA.id);
+      expect(reorderedTasks[1].position).toBe(1);
+      expect(reorderedTasks[2].id).toBe(taskB.id);
+      expect(reorderedTasks[2].position).toBe(2);
+    });
+
+    it('imposta updatedAt su tutti i task riordinati', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const taskA = taskService.createTask({ title: 'Task A' });
+      const taskB = taskService.createTask({ title: 'Task B' });
+      expect(taskA.updatedAt).toBeNull();
+      expect(taskB.updatedAt).toBeNull();
+
+      taskService.reorderTasksInColumn([taskB.id, taskA.id], 'backlog');
+
+      const updatedA = taskService.getTaskById(taskA.id)!;
+      const updatedB = taskService.getTaskById(taskB.id)!;
+      expect(updatedA.updatedAt).not.toBeNull();
+      expect(updatedB.updatedAt).not.toBeNull();
+      expect(new Date(updatedA.updatedAt!).toISOString()).toBe(updatedA.updatedAt);
+    });
+
+    it('lancia errore se un task ID non esiste', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const taskA = taskService.createTask({ title: 'Task A' });
+
+      expect(() =>
+        taskService.reorderTasksInColumn(
+          [taskA.id, '00000000-0000-0000-0000-000000000000'],
+          'backlog',
+        ),
+      ).toThrowError(/Task non trovato/);
+    });
+
+    it('lancia errore se un task appartiene a una colonna diversa', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const backlogTask = taskService.createTask({ title: 'Backlog Task' });
+      const inProgressTask = taskService.createTask({ title: 'In Progress Task', status: 'in-progress' });
+
+      expect(() =>
+        taskService.reorderTasksInColumn([backlogTask.id, inProgressTask.id], 'backlog'),
+      ).toThrowError(/appartiene alla colonna/);
+    });
+
+    it('non modifica nulla se la validazione fallisce (nessun aggiornamento parziale)', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const taskA = taskService.createTask({ title: 'Task A' });
+      const taskB = taskService.createTask({ title: 'Task B' });
+      const originalPositionA = taskA.position;
+      const originalPositionB = taskB.position;
+
+      expect(() =>
+        taskService.reorderTasksInColumn(
+          [taskB.id, taskA.id, '00000000-0000-0000-0000-000000000000'],
+          'backlog',
+        ),
+      ).toThrowError(/Task non trovato/);
+
+      // Le posizioni originali non devono essere state modificate
+      const unchangedA = taskService.getTaskById(taskA.id)!;
+      const unchangedB = taskService.getTaskById(taskB.id)!;
+      expect(unchangedA.position).toBe(originalPositionA);
+      expect(unchangedB.position).toBe(originalPositionB);
+      expect(unchangedA.updatedAt).toBeNull();
+      expect(unchangedB.updatedAt).toBeNull();
+    });
+
+    it('riordina correttamente 5+ task e preserva ordine nelle query successive', () => {
+      const { taskService } = createTemporaryProjectWithDatabase();
+
+      const tasks = [];
+      for (let index = 0; index < 6; index++) {
+        tasks.push(taskService.createTask({ title: `Task ${index}` }));
+      }
+
+      // Riordina in ordine inverso
+      const reversedIds = tasks.map((task) => task.id).reverse();
+      taskService.reorderTasksInColumn(reversedIds, 'backlog');
+
+      // Verifica con getTasksByStatus
+      const reorderedByStatus = taskService.getTasksByStatus('backlog');
+      expect(reorderedByStatus).toHaveLength(6);
+      for (let index = 0; index < 6; index++) {
+        expect(reorderedByStatus[index].id).toBe(reversedIds[index]);
+        expect(reorderedByStatus[index].position).toBe(index);
+      }
+
+      // Verifica con getAllTasks
+      const allTasks = taskService.getAllTasks();
+      expect(allTasks).toHaveLength(6);
+      for (let index = 0; index < 6; index++) {
+        expect(allTasks[index].id).toBe(reversedIds[index]);
+        expect(allTasks[index].position).toBe(index);
+      }
+    });
+  });
+
   it('calcola posizioni indipendenti per colonna', () => {
     const { taskService } = createTemporaryProjectWithDatabase();
 

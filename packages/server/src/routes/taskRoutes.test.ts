@@ -246,6 +246,95 @@ describe('DELETE /api/tasks/:id', () => {
   });
 });
 
+describe('PUT /api/tasks/reorder', () => {
+  it('riordina i task in una colonna e verifica il nuovo ordine tramite GET', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    // Crea 3 task
+    const createResponse1 = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task Alfa' },
+    });
+    const task1 = JSON.parse(createResponse1.payload);
+
+    const createResponse2 = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task Beta' },
+    });
+    const task2 = JSON.parse(createResponse2.payload);
+
+    const createResponse3 = await server.inject({
+      method: 'POST',
+      url: '/api/tasks',
+      payload: { title: 'Task Gamma' },
+    });
+    const task3 = JSON.parse(createResponse3.payload);
+
+    // Riordina: inverti l'ordine (3, 1, 2)
+    const reorderResponse = await server.inject({
+      method: 'PUT',
+      url: '/api/tasks/reorder',
+      payload: {
+        taskIds: [task3.id, task1.id, task2.id],
+        status: 'backlog',
+      },
+    });
+
+    expect(reorderResponse.statusCode).toBe(200);
+    const reorderBody = JSON.parse(reorderResponse.payload);
+    expect(reorderBody.success).toBe(true);
+
+    // Verifica il nuovo ordine tramite GET
+    const getResponse = await server.inject({
+      method: 'GET',
+      url: '/api/tasks?status=backlog',
+    });
+
+    expect(getResponse.statusCode).toBe(200);
+    const tasks = JSON.parse(getResponse.payload);
+    expect(tasks).toHaveLength(3);
+    expect(tasks[0].title).toBe('Task Gamma');
+    expect(tasks[1].title).toBe('Task Alfa');
+    expect(tasks[2].title).toBe('Task Beta');
+  });
+
+  it('restituisce 400 per uno status non valido', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const response = await server.inject({
+      method: 'PUT',
+      url: '/api/tasks/reorder',
+      payload: {
+        taskIds: ['some-id'],
+        status: 'archived',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.payload);
+    expect(body.error).toContain('archived');
+  });
+
+  it('restituisce 400 per un array taskIds vuoto', async () => {
+    const { server } = await createTemporaryServerInstance();
+
+    const response = await server.inject({
+      method: 'PUT',
+      url: '/api/tasks/reorder',
+      payload: {
+        taskIds: [],
+        status: 'backlog',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.payload);
+    expect(body.error).toBeDefined();
+  });
+});
+
 describe('PATCH /api/tasks/:id', () => {
   it('aggiorna il titolo di un task esistente e restituisce 200', async () => {
     const { server } = await createTemporaryServerInstance();

@@ -10,6 +10,7 @@ interface KanbanBoardProps {
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
   onMoveTask?: (taskId: string, newStatus: TaskStatus, newPosition: number) => void;
+  onReorderTasks?: (taskIds: string[], status: TaskStatus) => void;
 }
 
 type FilterOption = 'all' | TaskStatus;
@@ -27,7 +28,7 @@ const COLUMNS: { title: string; status: TaskStatus; colorClass: string }[] = [
   { title: 'Done', status: 'done', colorClass: 'bg-success' },
 ];
 
-export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriority, onMoveTask }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriority, onMoveTask, onReorderTasks }: KanbanBoardProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
 
   const handleDragEnd = useCallback((result: DropResult) => {
@@ -41,8 +42,26 @@ export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriorit
       return;
     }
 
-    onMoveTask?.(draggableId, destination.droppableId as TaskStatus, destination.index);
-  }, [onMoveTask]);
+    const sourceStatus = source.droppableId as TaskStatus;
+    const destinationStatus = destination.droppableId as TaskStatus;
+
+    if (sourceStatus === destinationStatus) {
+      // Same-column reorder
+      const columnTasks = tasks
+        .filter(task => task.status === sourceStatus)
+        .sort((a, b) => a.position - b.position);
+
+      const reorderedTasks = [...columnTasks];
+      const [movedTask] = reorderedTasks.splice(source.index, 1);
+      reorderedTasks.splice(destination.index, 0, movedTask);
+
+      const reorderedTaskIds = reorderedTasks.map(task => task.id);
+      onReorderTasks?.(reorderedTaskIds, sourceStatus);
+    } else {
+      // Cross-column move
+      onMoveTask?.(draggableId, destinationStatus, destination.index);
+    }
+  }, [tasks, onMoveTask, onReorderTasks]);
 
   const visibleColumns =
     activeFilter === 'all'

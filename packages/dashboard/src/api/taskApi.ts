@@ -51,6 +51,18 @@ export async function updateTask(taskId: string, payload: UpdateTaskPayload): Pr
   return response.json() as Promise<Task>;
 }
 
+export async function reorderTasks(taskIds: string[], status: TaskStatus): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/tasks/reorder`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ taskIds, status }),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json() as { error: string };
+    throw new Error(errorBody.error || `Errore nel riordinamento: ${response.statusText}`);
+  }
+}
+
 export async function deleteTask(taskId: string, force?: boolean): Promise<Task> {
   const queryString = force ? '?force=true' : '';
   const response = await fetch(`${API_BASE_URL}/tasks/${taskId}${queryString}`, {

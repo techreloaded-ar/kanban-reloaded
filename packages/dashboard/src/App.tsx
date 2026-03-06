@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'motion/react';
 import type { Task, TaskPriority, TaskStatus } from './types.js';
-import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks, getTaskDependencies } from './api/taskApi.js';
+import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks, getTaskDependencies, getTaskSubtasks } from './api/taskApi.js';
+import type { SubtaskProgress } from './api/taskApi.js';
 import { useWebSocket } from './hooks/useWebSocket.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
@@ -26,6 +27,7 @@ export function App() {
   const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
+  const [subtaskProgressMap, setSubtaskProgressMap] = useState<Map<string, SubtaskProgress>>(new Map());
 
   // Derive selectedTask from tasks list — avoids stale state and infinite re-render loops
   const selectedTask = useMemo(() => {
@@ -55,17 +57,34 @@ export function App() {
     setBlockedTaskIds(blocked);
   }, []);
 
+  const refreshSubtaskProgress = useCallback(async (taskList: Task[]) => {
+    const progressMap = new Map<string, SubtaskProgress>();
+    const subtaskResults = await Promise.allSettled(
+      taskList.map(async (task) => {
+        const response = await getTaskSubtasks(task.id);
+        return { taskId: task.id, progress: response.progress };
+      })
+    );
+    for (const result of subtaskResults) {
+      if (result.status === 'fulfilled' && result.value.progress.total > 0) {
+        progressMap.set(result.value.taskId, result.value.progress);
+      }
+    }
+    setSubtaskProgressMap(progressMap);
+  }, []);
+
   const fetchTasks = useCallback(async () => {
     try {
       const loadedTasks = await getAllTasks();
       setTasks(loadedTasks);
       setLoadingError(null);
       void refreshBlockedTaskIds(loadedTasks);
+      void refreshSubtaskProgress(loadedTasks);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       setLoadingError(message);
     }
-  }, [refreshBlockedTaskIds]);
+  }, [refreshBlockedTaskIds, refreshSubtaskProgress]);
 
   useEffect(() => {
     void fetchTasks();
@@ -183,6 +202,18 @@ export function App() {
     void refreshBlockedTaskIds(tasks);
   }, [refreshBlockedTaskIds, tasks]);
 
+  const handleSubtaskProgressChanged = useCallback((taskId: string, progress: SubtaskProgress) => {
+    setSubtaskProgressMap(previousMap => {
+      const updatedMap = new Map(previousMap);
+      if (progress.total > 0) {
+        updatedMap.set(taskId, progress);
+      } else {
+        updatedMap.delete(taskId);
+      }
+      return updatedMap;
+    });
+  }, []);
+
   const handleToggleTheme = useCallback(() => {
     setIsDarkMode(previous => !previous);
   }, []);
@@ -221,6 +252,7 @@ export function App() {
             <KanbanBoard
               tasks={tasks}
               blockedTaskIds={blockedTaskIds}
+              subtaskProgressMap={subtaskProgressMap}
               onCreateTask={() => setIsCreateModalOpen(true)}
               onDeleteTask={(taskId) => void handleDeleteTask(taskId)}
               onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)}
@@ -254,6 +286,7 @@ export function App() {
             onDelete={(taskId) => void handleDeleteTask(taskId)}
             onMoveTask={handleMoveTaskFromPanel}
             onDependenciesChanged={handleDependenciesChanged}
+            onSubtaskProgressChanged={handleSubtaskProgressChanged}
           />
         )}
       </AnimatePresence>

@@ -3,6 +3,7 @@ import { Draggable } from '@hello-pangea/dnd';
 import { Loader2, Lock } from 'lucide-react';
 import { Badge } from './ui/badge.js';
 import type { Task, TaskPriority } from '../types.js';
+import type { SubtaskProgress } from '../api/taskApi.js';
 
 const PRIORITY_CYCLE: Record<TaskPriority, TaskPriority> = {
   low: 'medium',
@@ -14,6 +15,7 @@ interface TaskCardProps {
   task: Task;
   index: number;
   isBlocked?: boolean;
+  subtaskProgress?: SubtaskProgress;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
   onTaskClick?: (task: Task) => void;
@@ -33,7 +35,7 @@ const PRIORITY_CLASSES: Record<TaskPriority, string> = {
 
 const DRAG_THRESHOLD_PX = 5;
 
-export function TaskCard({ task, index, isBlocked, onDeleteTask, onUpdatePriority, onTaskClick }: TaskCardProps) {
+export function TaskCard({ task, index, isBlocked, subtaskProgress, onDeleteTask, onUpdatePriority, onTaskClick }: TaskCardProps) {
   const mouseDownPosition = useRef<{ x: number; y: number } | null>(null);
 
   return (
@@ -103,6 +105,18 @@ export function TaskCard({ task, index, isBlocked, onDeleteTask, onUpdatePriorit
           </Badge>
 
           <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+
+          {subtaskProgress && subtaskProgress.total > 0 && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-success rounded-full transition-all"
+                  style={{ width: `${(subtaskProgress.completed / subtaskProgress.total) * 100}%` }}
+                />
+              </div>
+              <span>{subtaskProgress.completed}/{subtaskProgress.total}</span>
+            </div>
+          )}
 
           {onDeleteTask && (
             <button

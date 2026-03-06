@@ -31,6 +31,16 @@ const CREATE_CONFIG_TABLE_SQL = `
   )
 `;
 
+const CREATE_SUBTASKS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS subtasks (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    completed INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0
+  )
+`;
+
 const CREATE_TASK_DEPENDENCIES_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS task_dependencies (
     blocking_task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -118,6 +128,7 @@ export function initializeDatabase(projectDirectoryPath: string): DatabaseInitia
   sqliteConnection.exec(CREATE_TASKS_TABLE_SQL);
   sqliteConnection.exec(CREATE_CONFIG_TABLE_SQL);
   sqliteConnection.exec(CREATE_TASK_DEPENDENCIES_TABLE_SQL);
+  sqliteConnection.exec(CREATE_SUBTASKS_TABLE_SQL);
 
   // Migrazione: aggiunge la colonna 'agent' se non esiste (US-016: supporto agent multipli)
   applyMigrations(sqliteConnection);

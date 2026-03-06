@@ -641,7 +641,7 @@ describe('TaskService', () => {
       });
     });
 
-    describe('cascade delete', () => {
+    describe('cascade delete delle dipendenze', () => {
       it('rimuove le dipendenze quando un task viene eliminato', () => {
         const { taskService } = createTemporaryProjectWithDatabase();
         const taskA = taskService.createTask({ title: 'Task A' });
@@ -658,6 +658,197 @@ describe('TaskService', () => {
         expect(taskService.getBlockingTasks(taskB.id)).toHaveLength(0);
         expect(taskService.getBlockedTasks(taskA.id)).toHaveLength(0);
         expect(taskService.getBlockingTasks(taskC.id)).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('subtask', () => {
+    describe('createSubtask', () => {
+      it('crea un subtask associato a un task esistente', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task con subtask' });
+
+        const subtask = taskService.createSubtask({ taskId: task.id, text: 'Primo subtask' });
+
+        expect(subtask.id).toBeDefined();
+        expect(subtask.taskId).toBe(task.id);
+        expect(subtask.text).toBe('Primo subtask');
+        expect(subtask.completed).toBe(false);
+        expect(subtask.position).toBe(0);
+      });
+
+      it('lancia errore se il task padre non esiste', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+
+        expect(() =>
+          taskService.createSubtask({ taskId: '00000000-0000-0000-0000-000000000000', text: 'Subtask orfano' }),
+        ).toThrowError(/Task non trovato/);
+      });
+
+      it('lancia errore se il testo e vuoto', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task' });
+
+        expect(() =>
+          taskService.createSubtask({ taskId: task.id, text: '   ' }),
+        ).toThrowError(/vuoto/);
+      });
+
+      it('assegna posizioni incrementali ai subtask', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task' });
+
+        const first = taskService.createSubtask({ taskId: task.id, text: 'Primo' });
+        const second = taskService.createSubtask({ taskId: task.id, text: 'Secondo' });
+        const third = taskService.createSubtask({ taskId: task.id, text: 'Terzo' });
+
+        expect(first.position).toBe(0);
+        expect(second.position).toBe(1);
+        expect(third.position).toBe(2);
+      });
+    });
+
+    describe('getSubtasksByTaskId', () => {
+      it('restituisce i subtask ordinati per posizione', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task' });
+
+        taskService.createSubtask({ taskId: task.id, text: 'Subtask A' });
+        taskService.createSubtask({ taskId: task.id, text: 'Subtask B' });
+        taskService.createSubtask({ taskId: task.id, text: 'Subtask C' });
+
+        const subtasks = taskService.getSubtasksByTaskId(task.id);
+
+        expect(subtasks).toHaveLength(3);
+        expect(subtasks[0].text).toBe('Subtask A');
+        expect(subtasks[1].text).toBe('Subtask B');
+        expect(subtasks[2].text).toBe('Subtask C');
+      });
+
+      it('restituisce array vuoto per task senza subtask', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task senza subtask' });
+
+        const subtasks = taskService.getSubtasksByTaskId(task.id);
+
+        expect(subtasks).toHaveLength(0);
+      });
+    });
+
+    describe('updateSubtask', () => {
+      it('aggiorna il testo di un subtask', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task' });
+        const subtask = taskService.createSubtask({ taskId: task.id, text: 'Testo originale' });
+
+        const updated = taskService.updateSubtask(subtask.id, { text: 'Testo aggiornato' });
+
+        expect(updated.text).toBe('Testo aggiornato');
+        expect(updated.completed).toBe(false);
+      });
+
+      it('lancia errore se il subtask non esiste', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+
+        expect(() =>
+          taskService.updateSubtask('00000000-0000-0000-0000-000000000000', { text: 'Fantasma' }),
+        ).toThrowError(/Subtask non trovato/);
+      });
+    });
+
+    describe('toggleSubtask', () => {
+      it('inverte lo stato completed da false a true e viceversa', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task' });
+        const subtask = taskService.createSubtask({ taskId: task.id, text: 'Subtask toggle' });
+
+        expect(subtask.completed).toBe(false);
+
+        const toggled = taskService.toggleSubtask(subtask.id);
+        expect(toggled.completed).toBe(true);
+
+        const toggledBack = taskService.toggleSubtask(subtask.id);
+        expect(toggledBack.completed).toBe(false);
+      });
+
+      it('lancia errore se il subtask non esiste', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+
+        expect(() =>
+          taskService.toggleSubtask('00000000-0000-0000-0000-000000000000'),
+        ).toThrowError(/Subtask non trovato/);
+      });
+    });
+
+    describe('deleteSubtask', () => {
+      it('elimina un subtask e verifica che non esista piu', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task' });
+        const subtask = taskService.createSubtask({ taskId: task.id, text: 'Subtask da eliminare' });
+
+        taskService.deleteSubtask(subtask.id);
+
+        const subtasks = taskService.getSubtasksByTaskId(task.id);
+        expect(subtasks).toHaveLength(0);
+      });
+
+      it('lancia errore se il subtask non esiste', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+
+        expect(() =>
+          taskService.deleteSubtask('00000000-0000-0000-0000-000000000000'),
+        ).toThrowError(/Subtask non trovato/);
+      });
+    });
+
+    describe('getSubtaskProgress', () => {
+      it('restituisce il conteggio totale e completati', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task' });
+
+        taskService.createSubtask({ taskId: task.id, text: 'Sub 1' });
+        const sub2 = taskService.createSubtask({ taskId: task.id, text: 'Sub 2' });
+        taskService.createSubtask({ taskId: task.id, text: 'Sub 3' });
+        const sub4 = taskService.createSubtask({ taskId: task.id, text: 'Sub 4' });
+        taskService.createSubtask({ taskId: task.id, text: 'Sub 5' });
+
+        taskService.toggleSubtask(sub2.id);
+        taskService.toggleSubtask(sub4.id);
+
+        const progress = taskService.getSubtaskProgress(task.id);
+
+        expect(progress.total).toBe(5);
+        expect(progress.completed).toBe(2);
+      });
+
+      it('restituisce zero per task senza subtask', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task vuoto' });
+
+        const progress = taskService.getSubtaskProgress(task.id);
+
+        expect(progress.total).toBe(0);
+        expect(progress.completed).toBe(0);
+      });
+    });
+
+    describe('cascade delete dei subtask', () => {
+      it('elimina i subtask quando il task padre viene eliminato', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task con subtask' });
+
+        taskService.createSubtask({ taskId: task.id, text: 'Sub 1' });
+        taskService.createSubtask({ taskId: task.id, text: 'Sub 2' });
+        taskService.createSubtask({ taskId: task.id, text: 'Sub 3' });
+
+        // Verifica che i subtask esistano prima della cancellazione
+        expect(taskService.getSubtasksByTaskId(task.id)).toHaveLength(3);
+
+        taskService.deleteTask(task.id);
+
+        // Dopo la cancellazione del task, i subtask devono essere stati rimossi via CASCADE
+        const orphanedSubtasks = taskService.getSubtasksByTaskId(task.id);
+        expect(orphanedSubtasks).toHaveLength(0);
       });
     });
   });

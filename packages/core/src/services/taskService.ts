@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import { eq, and, sql, desc } from 'drizzle-orm';
 import type { DatabaseInstance } from '../storage/database.js';
-import { tasksTable, taskDependenciesTable } from '../models/schema.js';
-import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus, TaskDependency } from '../models/types.js';
+import { tasksTable, taskDependenciesTable, subtasksTable } from '../models/schema.js';
+import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus, TaskDependency, Subtask, CreateSubtaskInput, UpdateSubtaskInput, SubtaskProgress } from '../models/types.js';
 
 /**
  * Servizio per la gestione delle task (CRUD).
@@ -334,6 +334,153 @@ export class TaskService {
   isTaskBlocked(taskId: string): boolean {
     return this.getUncompletedBlockers(taskId).length > 0;
   }
+
+  // ─── Subtask methods ───────────────────────────────────────────────
+
+  /**
+   * Crea un nuovo subtask associato a un task esistente.
+   * La posizione viene calcolata automaticamente come MAX(position) + 1.
+   *
+   * @throws Error se il task padre non esiste
+   * @throws Error se il testo e vuoto
+   */
+  createSubtask(input: CreateSubtaskInput): Subtask {
+    const parentTask = this.getTaskById(input.taskId);
+    if (!parentTask) {
+      throw new Error(`Task non trovato con ID: ${input.taskId}`);
+    }
+
+    const sanitizedText = input.text.trim();
+    if (sanitizedText.length === 0) {
+      throw new Error('Il testo del subtask non puo essere vuoto');
+    }
+
+    const maxPositionResult = this.database
+      .select({ maxPosition: sql<number>`MAX(${subtasksTable.position})` })
+      .from(subtasksTable)
+      .where(eq(subtasksTable.taskId, input.taskId))
+      .get();
+    const nextPosition = (maxPositionResult?.maxPosition ?? -1) + 1;
+
+    const newSubtask: Subtask = {
+      id: crypto.randomUUID(),
+      taskId: input.taskId,
+      text: sanitizedText,
+      completed: false,
+      position: nextPosition,
+    };
+
+    this.database.insert(subtasksTable).values(newSubtask).run();
+
+    return newSubtask;
+  }
+
+  /**
+   * Restituisce tutti i subtask di un task, ordinati per posizione crescente.
+   */
+  getSubtasksByTaskId(taskId: string): Subtask[] {
+    return this.database
+      .select()
+      .from(subtasksTable)
+      .where(eq(subtasksTable.taskId, taskId))
+      .orderBy(subtasksTable.position)
+      .all() as Subtask[];
+  }
+
+  /**
+   * Restituisce un singolo subtask per ID.
+   */
+  getSubtaskById(subtaskId: string): Subtask | undefined {
+    return this.database
+      .select()
+      .from(subtasksTable)
+      .where(eq(subtasksTable.id, subtaskId))
+      .get() as Subtask | undefined;
+  }
+
+  /**
+   * Aggiorna parzialmente un subtask esistente.
+   *
+   * @throws Error se il subtask non esiste
+   * @throws Error se il testo risulta vuoto dopo il trim
+   */
+  updateSubtask(subtaskId: string, input: UpdateSubtaskInput): Subtask {
+    const existingSubtask = this.getSubtaskById(subtaskId);
+    if (!existingSubtask) {
+      throw new Error(`Subtask non trovato con ID: ${subtaskId}`);
+    }
+
+    const fieldsToUpdate: Partial<typeof subtasksTable.$inferInsert> = {};
+
+    if (input.text !== undefined) {
+      const trimmedText = input.text.trim();
+      if (trimmedText.length === 0) {
+        throw new Error('Il testo del subtask non puo essere vuoto');
+      }
+      fieldsToUpdate.text = trimmedText;
+    }
+    if (input.completed !== undefined) fieldsToUpdate.completed = input.completed;
+    if (input.position !== undefined) fieldsToUpdate.position = input.position;
+
+    this.database
+      .update(subtasksTable)
+      .set(fieldsToUpdate)
+      .where(eq(subtasksTable.id, subtaskId))
+      .run();
+
+    return this.getSubtaskById(subtaskId) as Subtask;
+  }
+
+  /**
+   * Elimina un subtask dal database.
+   *
+   * @throws Error se il subtask non esiste
+   */
+  deleteSubtask(subtaskId: string): void {
+    const existingSubtask = this.getSubtaskById(subtaskId);
+    if (!existingSubtask) {
+      throw new Error(`Subtask non trovato con ID: ${subtaskId}`);
+    }
+
+    this.database
+      .delete(subtasksTable)
+      .where(eq(subtasksTable.id, subtaskId))
+      .run();
+  }
+
+  /**
+   * Inverte lo stato completed di un subtask (toggle).
+   *
+   * @throws Error se il subtask non esiste
+   */
+  toggleSubtask(subtaskId: string): Subtask {
+    const existingSubtask = this.getSubtaskById(subtaskId);
+    if (!existingSubtask) {
+      throw new Error(`Subtask non trovato con ID: ${subtaskId}`);
+    }
+
+    this.database
+      .update(subtasksTable)
+      .set({ completed: !existingSubtask.completed })
+      .where(eq(subtasksTable.id, subtaskId))
+      .run();
+
+    return this.getSubtaskById(subtaskId) as Subtask;
+  }
+
+  /**
+   * Restituisce il progresso dei subtask per un task: totale e completati.
+   */
+  getSubtaskProgress(taskId: string): SubtaskProgress {
+    const subtasks = this.getSubtasksByTaskId(taskId);
+    const completedCount = subtasks.filter((subtask) => subtask.completed).length;
+    return {
+      total: subtasks.length,
+      completed: completedCount,
+    };
+  }
+
+  // ─── Reorder methods ──────────────────────────────────────────────
 
   reorderTasksInColumn(taskIds: string[], status: TaskStatus): void {
     const currentTimestamp = new Date().toISOString();

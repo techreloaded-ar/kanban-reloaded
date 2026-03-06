@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws';
-import type { Task } from '@kanban-reloaded/core';
+import type { Task, Subtask } from '@kanban-reloaded/core';
 
 /** Costante WebSocket.OPEN (readyState === 1) per evitare magic numbers */
 const WEBSOCKET_READY_STATE_OPEN = 1;
@@ -13,7 +13,8 @@ export type TaskWebSocketEventType =
   | 'task:deleted'
   | 'task:reordered'
   | 'task:dependency-added'
-  | 'task:dependency-removed';
+  | 'task:dependency-removed'
+  | 'task:subtask-changed';
 
 /**
  * Tipi di eventi WebSocket per il ciclo di vita degli agent AI.
@@ -53,6 +54,16 @@ export interface AgentCompletedPayload {
 }
 
 /**
+ * Payload per l'evento task:subtask-changed — un subtask e stato creato, modificato o eliminato.
+ */
+export interface SubtaskChangedPayload {
+  taskId: string;
+  subtask?: Subtask;
+  subtaskId?: string;
+  action: 'created' | 'updated' | 'toggled' | 'deleted';
+}
+
+/**
  * Payload per gli eventi di dipendenza tra task.
  */
 export interface DependencyChangedPayload {
@@ -79,6 +90,7 @@ export type WebSocketEventPayload =
   | { type: 'task:reordered'; payload: Task[] }
   | { type: 'task:dependency-added'; payload: DependencyChangedPayload }
   | { type: 'task:dependency-removed'; payload: DependencyChangedPayload }
+  | { type: 'task:subtask-changed'; payload: SubtaskChangedPayload }
   | { type: 'agent:started'; payload: AgentStartedPayload }
   | { type: 'agent:output'; payload: AgentOutputPayload }
   | { type: 'agent:completed'; payload: AgentCompletedPayload };
@@ -93,7 +105,8 @@ export type TaskWebSocketEventPayload =
   | { type: 'task:deleted'; payload: { id: string } }
   | { type: 'task:reordered'; payload: Task[] }
   | { type: 'task:dependency-added'; payload: DependencyChangedPayload }
-  | { type: 'task:dependency-removed'; payload: DependencyChangedPayload };
+  | { type: 'task:dependency-removed'; payload: DependencyChangedPayload }
+  | { type: 'task:subtask-changed'; payload: SubtaskChangedPayload };
 
 /**
  * Messaggio WebSocket completo inviato ai client connessi.

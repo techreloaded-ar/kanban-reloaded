@@ -52,6 +52,20 @@ interface AddDependencyRequestBody {
   blockingTaskId?: string;
 }
 
+interface SubtaskRouteParams {
+  subtaskId: string;
+}
+
+interface CreateSubtaskRequestBody {
+  text?: string;
+}
+
+interface UpdateSubtaskRequestBody {
+  text?: string;
+  completed?: boolean;
+  position?: number;
+}
+
 /**
  * Registra le route REST per la gestione dei task.
  * Le route vengono chiuse sul taskService passato tramite closure.
@@ -431,6 +445,177 @@ export function registerTaskRoutes(
         return reply.send({ isBlocked, uncompletedBlockers });
       } catch (error) {
         if (error instanceof Error && error.message.includes('Task non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  // ─── Subtask endpoints ──────────────────────────────────────────────
+
+  /**
+   * GET /api/tasks/:id/subtasks
+   * Restituisce tutti i subtask di un task, ordinati per posizione.
+   */
+  server.get<{ Params: TaskRouteParams }>(
+    '/api/tasks/:id/subtasks',
+    async (request, reply) => {
+      const { id } = request.params;
+
+      const existingTask = taskService.getTaskById(id);
+      if (!existingTask) {
+        return reply.status(404).send({ error: `Task non trovato con ID: ${id}` });
+      }
+
+      const subtasks = taskService.getSubtasksByTaskId(id);
+      const progress = taskService.getSubtaskProgress(id);
+
+      return reply.send({ subtasks, progress });
+    },
+  );
+
+  /**
+   * POST /api/tasks/:id/subtasks
+   * Crea un nuovo subtask per il task specificato.
+   */
+  server.post<{ Params: TaskRouteParams; Body: CreateSubtaskRequestBody }>(
+    '/api/tasks/:id/subtasks',
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body as CreateSubtaskRequestBody | null;
+
+      if (!body || typeof body.text !== 'string' || body.text.trim().length === 0) {
+        return reply.status(400).send({
+          error: 'Il campo text e obbligatorio e non puo essere vuoto',
+        });
+      }
+
+      try {
+        const subtask = taskService.createSubtask({ taskId: id, text: body.text });
+
+        websocketBroadcaster.broadcastEvent({
+          type: 'task:subtask-changed',
+          payload: { taskId: id, subtask, action: 'created' },
+        });
+
+        return reply.status(201).send(subtask);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Task non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * PATCH /api/subtasks/:subtaskId
+   * Aggiorna parzialmente un subtask (text, completed, position).
+   */
+  server.patch<{ Params: SubtaskRouteParams; Body: UpdateSubtaskRequestBody }>(
+    '/api/subtasks/:subtaskId',
+    async (request, reply) => {
+      const { subtaskId } = request.params;
+      const body = request.body as UpdateSubtaskRequestBody | null;
+
+      if (!body) {
+        return reply.status(400).send({
+          error: 'Il body della richiesta e obbligatorio',
+        });
+      }
+
+      const hasText = body.text !== undefined;
+      const hasCompleted = body.completed !== undefined;
+      const hasPosition = body.position !== undefined;
+
+      if (!hasText && !hasCompleted && !hasPosition) {
+        return reply.status(400).send({
+          error: 'Specificare almeno un campo da aggiornare: text, completed, position',
+        });
+      }
+
+      if (hasText && typeof body.text === 'string' && body.text.trim().length === 0) {
+        return reply.status(400).send({
+          error: 'Il campo text non puo essere vuoto',
+        });
+      }
+
+      try {
+        const updatedSubtask = taskService.updateSubtask(subtaskId, {
+          text: hasText ? body.text : undefined,
+          completed: hasCompleted ? body.completed : undefined,
+          position: hasPosition ? body.position : undefined,
+        });
+
+        websocketBroadcaster.broadcastEvent({
+          type: 'task:subtask-changed',
+          payload: { taskId: updatedSubtask.taskId, subtask: updatedSubtask, action: 'updated' },
+        });
+
+        return reply.send(updatedSubtask);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Subtask non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * DELETE /api/subtasks/:subtaskId
+   * Elimina un subtask.
+   */
+  server.delete<{ Params: SubtaskRouteParams }>(
+    '/api/subtasks/:subtaskId',
+    async (request, reply) => {
+      const { subtaskId } = request.params;
+
+      try {
+        const existingSubtask = taskService.getSubtaskById(subtaskId);
+        if (!existingSubtask) {
+          return reply.status(404).send({ error: `Subtask non trovato con ID: ${subtaskId}` });
+        }
+
+        const taskId = existingSubtask.taskId;
+        taskService.deleteSubtask(subtaskId);
+
+        websocketBroadcaster.broadcastEvent({
+          type: 'task:subtask-changed',
+          payload: { taskId, subtaskId, action: 'deleted' },
+        });
+
+        return reply.send({ success: true });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Subtask non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * PATCH /api/subtasks/:subtaskId/toggle
+   * Inverte lo stato completed di un subtask.
+   */
+  server.patch<{ Params: SubtaskRouteParams }>(
+    '/api/subtasks/:subtaskId/toggle',
+    async (request, reply) => {
+      const { subtaskId } = request.params;
+
+      try {
+        const toggledSubtask = taskService.toggleSubtask(subtaskId);
+
+        websocketBroadcaster.broadcastEvent({
+          type: 'task:subtask-changed',
+          payload: { taskId: toggledSubtask.taskId, subtask: toggledSubtask, action: 'toggled' },
+        });
+
+        return reply.send(toggledSubtask);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Subtask non trovato')) {
           return reply.status(404).send({ error: error.message });
         }
         throw error;

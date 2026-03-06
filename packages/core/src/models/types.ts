@@ -54,6 +54,30 @@ export interface UpdateTaskInput {
   position?: number;
 }
 
+export interface Subtask {
+  id: string;
+  taskId: string;
+  text: string;
+  completed: boolean;
+  position: number;
+}
+
+export interface CreateSubtaskInput {
+  taskId: string;
+  text: string;
+}
+
+export interface UpdateSubtaskInput {
+  text?: string;
+  completed?: boolean;
+  position?: number;
+}
+
+export interface SubtaskProgress {
+  total: number;
+  completed: number;
+}
+
 /**
  * Mappa nome agent -> template comando.
  * Es. { "feature": "claude --prompt '{{title}}'", "bugfix": "aider --message '{{description}}'" }

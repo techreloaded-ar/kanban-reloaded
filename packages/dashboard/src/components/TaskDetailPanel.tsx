@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
-import { X, Trash2, Clock, Loader2, Lock, Link, Unlink } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { X, Trash2, Clock, Loader2, Lock, Link, Unlink, Plus, ListChecks } from "lucide-react";
 import { Button } from "./ui/button.js";
 import { Badge } from "./ui/badge.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.js";
 import { ScrollArea } from "./ui/scroll-area.js";
 import type { Task, TaskStatus } from "../types.js";
 import { motion } from "motion/react";
-import { getTaskDependencies, addTaskDependency, removeTaskDependency } from "../api/taskApi.js";
-import type { TaskDependencies } from "../api/taskApi.js";
+import { getTaskDependencies, addTaskDependency, removeTaskDependency, getTaskSubtasks, createSubtask, toggleSubtask, deleteSubtask } from "../api/taskApi.js";
+import type { TaskDependencies, Subtask, SubtaskProgress } from "../api/taskApi.js";
 
 interface TaskDetailPanelProps {
   task: Task | null;
@@ -16,6 +16,7 @@ interface TaskDetailPanelProps {
   onDelete: (taskId: string) => void;
   onMoveTask: (taskId: string, newStatus: TaskStatus) => void;
   onDependenciesChanged?: () => void;
+  onSubtaskProgressChanged?: (taskId: string, progress: SubtaskProgress) => void;
 }
 
 const priorityConfig = {
@@ -30,12 +31,20 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done",
 };
 
-export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask, onDependenciesChanged }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged }: TaskDetailPanelProps) {
   const [dependencies, setDependencies] = useState<TaskDependencies | null>(null);
   const [dependencyLoadingError, setDependencyLoadingError] = useState<string | null>(null);
   const [selectedBlockingTaskId, setSelectedBlockingTaskId] = useState<string>("");
   const [dependencyActionError, setDependencyActionError] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+
+  // Subtask state
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [subtaskProgress, setSubtaskProgress] = useState<SubtaskProgress>({ total: 0, completed: 0 });
+  const [subtasksLoading, setSubtasksLoading] = useState(false);
+  const [subtaskError, setSubtaskError] = useState<string | null>(null);
+  const [newSubtaskText, setNewSubtaskText] = useState("");
+  const newSubtaskInputRef = useRef<HTMLInputElement>(null);
 
   const fetchDependencies = useCallback(async (taskId: string) => {
     try {
@@ -48,16 +57,75 @@ export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask,
     }
   }, []);
 
+  const fetchSubtasks = useCallback(async (taskId: string) => {
+    try {
+      setSubtasksLoading(true);
+      setSubtaskError(null);
+      const response = await getTaskSubtasks(taskId);
+      setSubtasks(response.subtasks);
+      setSubtaskProgress(response.progress);
+      onSubtaskProgressChanged?.(taskId, response.progress);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Errore sconosciuto";
+      setSubtaskError(message);
+    } finally {
+      setSubtasksLoading(false);
+    }
+  }, [onSubtaskProgressChanged]);
+
+  const handleAddSubtask = useCallback(async () => {
+    if (!task || !newSubtaskText.trim()) return;
+    try {
+      setSubtaskError(null);
+      await createSubtask(task.id, newSubtaskText.trim());
+      setNewSubtaskText("");
+      await fetchSubtasks(task.id);
+      newSubtaskInputRef.current?.focus();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Errore sconosciuto";
+      setSubtaskError(message);
+    }
+  }, [task, newSubtaskText, fetchSubtasks]);
+
+  const handleToggleSubtask = useCallback(async (subtaskId: string) => {
+    if (!task) return;
+    try {
+      setSubtaskError(null);
+      await toggleSubtask(subtaskId);
+      await fetchSubtasks(task.id);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Errore sconosciuto";
+      setSubtaskError(message);
+    }
+  }, [task, fetchSubtasks]);
+
+  const handleDeleteSubtask = useCallback(async (subtaskId: string) => {
+    if (!task) return;
+    try {
+      setSubtaskError(null);
+      await deleteSubtask(subtaskId);
+      await fetchSubtasks(task.id);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Errore sconosciuto";
+      setSubtaskError(message);
+    }
+  }, [task, fetchSubtasks]);
+
   useEffect(() => {
     if (task) {
       setMoveError(null);
       setDependencyActionError(null);
       setSelectedBlockingTaskId("");
+      setNewSubtaskText("");
+      setSubtaskError(null);
       void fetchDependencies(task.id);
+      void fetchSubtasks(task.id);
     } else {
       setDependencies(null);
+      setSubtasks([]);
+      setSubtaskProgress({ total: 0, completed: 0 });
     }
-  }, [task, fetchDependencies]);
+  }, [task, fetchDependencies, fetchSubtasks]);
 
   const handleAddDependency = useCallback(async () => {
     if (!task || !selectedBlockingTaskId) return;
@@ -192,6 +260,106 @@ export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask,
                   <ScrollArea className="h-32">
                     <pre className="text-xs font-mono text-foreground whitespace-pre-wrap">{task.agentLog}</pre>
                   </ScrollArea>
+                </div>
+              )}
+            </div>
+
+            {/* Sotto-attivita */}
+            <div className="border-t border-border pt-6">
+              <div className="flex items-center gap-2 mb-3">
+                <ListChecks className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold">
+                  Sotto-attivita
+                  {subtaskProgress.total > 0 && (
+                    <span className="ml-1 text-sm font-normal text-muted-foreground">
+                      ({subtaskProgress.completed}/{subtaskProgress.total})
+                    </span>
+                  )}
+                </h3>
+              </div>
+
+              {subtasksLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Caricamento sotto-attivita...
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {subtaskProgress.total > 0 && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-success rounded-full transition-all"
+                          style={{ width: `${(subtaskProgress.completed / subtaskProgress.total) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {Math.round((subtaskProgress.completed / subtaskProgress.total) * 100)}%
+                      </span>
+                    </div>
+                  )}
+
+                  {subtasks.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nessuna sotto-attivita</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {subtasks.map((subtask) => (
+                        <li
+                          key={subtask.id}
+                          className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 group/subtask"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={subtask.completed}
+                            onChange={() => void handleToggleSubtask(subtask.id)}
+                            className="h-4 w-4 rounded border-border text-primary accent-primary cursor-pointer"
+                            aria-label={`Segna "${subtask.text}" come ${subtask.completed ? 'non completata' : 'completata'}`}
+                          />
+                          <span className={`flex-1 text-sm ${subtask.completed ? 'line-through text-muted-foreground' : ''}`}>
+                            {subtask.text}
+                          </span>
+                          <button
+                            onClick={() => void handleDeleteSubtask(subtask.id)}
+                            className="shrink-0 rounded p-1 text-muted-foreground opacity-0 group-hover/subtask:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-opacity"
+                            aria-label={`Elimina sotto-attivita "${subtask.text}"`}
+                            title="Elimina sotto-attivita"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Add new subtask */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <input
+                      ref={newSubtaskInputRef}
+                      type="text"
+                      value={newSubtaskText}
+                      onChange={(event) => setNewSubtaskText(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          void handleAddSubtask();
+                        }
+                      }}
+                      placeholder="Nuova sotto-attivita..."
+                      className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!newSubtaskText.trim()}
+                      onClick={() => void handleAddSubtask()}
+                      aria-label="Aggiungi sotto-attivita"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {subtaskError && (
+                    <p className="text-xs text-destructive">{subtaskError}</p>
+                  )}
                 </div>
               )}
             </div>

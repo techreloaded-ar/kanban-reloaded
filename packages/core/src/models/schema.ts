@@ -24,6 +24,14 @@ export const taskDependenciesTable = sqliteTable('task_dependencies', {
   primaryKey({ columns: [table.blockingTaskId, table.blockedTaskId] }),
 ]);
 
+export const subtasksTable = sqliteTable('subtasks', {
+  id: text('id').primaryKey(),
+  taskId: text('task_id').notNull().references(() => tasksTable.id, { onDelete: 'cascade' }),
+  text: text('text').notNull(),
+  completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+  position: integer('position').notNull().default(0),
+});
+
 export const configTable = sqliteTable('config', {
   key: text('key').primaryKey(),
   value: text('value').notNull(), // JSON-encoded

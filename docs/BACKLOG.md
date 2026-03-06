@@ -531,7 +531,7 @@ so that il team sappia quali task devono essere completati prima di iniziarne al
 
 ---
 
-#### US-022: Sotto-attivita (subtask)
+#### US-022: Sotto-attivita (subtask) — DONE
 
 **Epic:** EP-006 | **Priority:** MEDIUM | **Story Points:** 5
 
@@ -541,9 +541,11 @@ I want scomporre un task in sotto-attivita con checkbox,
 so that posso tracciare i progressi granulari su task complessi senza creare troppi task separati nel backlog.
 
 **Acceptance Criteria**
-- [ ] Ogni task puo avere una lista di subtask con testo e stato (completato/non completato); la card nella board mostra una progress bar o un contatore (es. "3/5 completati")
-- [ ] I subtask possono essere aggiunti, modificati, eliminati e togglati dal pannello dettaglio del task nella dashboard
-- [ ] L'agent puo aggiornare lo stato dei subtask via API, permettendo di marcare i sotto-obiettivi man mano che li completa
+- [x] Ogni task puo avere una lista di subtask con testo e stato (completato/non completato); la card nella board mostra una progress bar o un contatore (es. "3/5 completati")
+- [x] I subtask possono essere aggiunti, modificati, eliminati e togglati dal pannello dettaglio del task nella dashboard
+- [x] L'agent puo aggiornare lo stato dei subtask via API, permettendo di marcare i sotto-obiettivi man mano che li completa
+
+**Status: DONE**
 
 ---
 

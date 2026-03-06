@@ -110,3 +110,62 @@ export async function removeTaskDependency(blockedTaskId: string, blockingTaskId
     throw new Error('Errore nella rimozione della dipendenza');
   }
 }
+
+// --- Subtask API functions ---
+
+export interface Subtask {
+  id: string;
+  taskId: string;
+  text: string;
+  completed: boolean;
+  position: number;
+}
+
+export interface SubtaskProgress {
+  total: number;
+  completed: number;
+}
+
+export interface SubtaskListResponse {
+  subtasks: Subtask[];
+  progress: SubtaskProgress;
+}
+
+export async function getTaskSubtasks(taskId: string): Promise<SubtaskListResponse> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/subtasks`);
+  if (!response.ok) {
+    throw new Error('Errore nel recupero dei subtask');
+  }
+  return response.json() as Promise<SubtaskListResponse>;
+}
+
+export async function createSubtask(taskId: string, text: string): Promise<Subtask> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/subtasks`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) {
+    throw new Error('Errore nella creazione del subtask');
+  }
+  return response.json() as Promise<Subtask>;
+}
+
+export async function toggleSubtask(subtaskId: string): Promise<Subtask> {
+  const response = await fetch(`${API_BASE_URL}/subtasks/${subtaskId}/toggle`, {
+    method: 'PATCH',
+  });
+  if (!response.ok) {
+    throw new Error('Errore nel toggle del subtask');
+  }
+  return response.json() as Promise<Subtask>;
+}
+
+export async function deleteSubtask(subtaskId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/subtasks/${subtaskId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Errore nella cancellazione del subtask');
+  }
+}

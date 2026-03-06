@@ -2,11 +2,13 @@ import { useState, useCallback } from 'react';
 import { DragDropContext } from '@hello-pangea/dnd';
 import type { DropResult } from '@hello-pangea/dnd';
 import type { Task, TaskPriority, TaskStatus } from '../types.js';
+import type { SubtaskProgress } from '../api/taskApi.js';
 import { KanbanColumn } from './KanbanColumn.js';
 
 interface KanbanBoardProps {
   tasks: Task[];
   blockedTaskIds?: Set<string>;
+  subtaskProgressMap?: Map<string, SubtaskProgress>;
   onCreateTask: (status?: TaskStatus) => void;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
@@ -30,7 +32,7 @@ const COLUMNS: { title: string; status: TaskStatus; colorClass: string }[] = [
   { title: 'Done', status: 'done', colorClass: 'bg-success' },
 ];
 
-export function KanbanBoard({ tasks, blockedTaskIds, onCreateTask, onDeleteTask, onUpdatePriority, onMoveTask, onReorderTasks, onTaskClick }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, blockedTaskIds, subtaskProgressMap, onCreateTask, onDeleteTask, onUpdatePriority, onMoveTask, onReorderTasks, onTaskClick }: KanbanBoardProps) {
   const [activeFilter, setActiveFilter] = useState<FilterOption>('all');
 
   const handleDragEnd = useCallback((result: DropResult) => {
@@ -150,6 +152,7 @@ export function KanbanBoard({ tasks, blockedTaskIds, onCreateTask, onDeleteTask,
                 tasks={tasksByStatus(column.status)}
                 colorClass={column.colorClass}
                 blockedTaskIds={blockedTaskIds}
+                subtaskProgressMap={subtaskProgressMap}
                 onDeleteTask={onDeleteTask}
                 onUpdatePriority={onUpdatePriority}
                 onTaskClick={onTaskClick}

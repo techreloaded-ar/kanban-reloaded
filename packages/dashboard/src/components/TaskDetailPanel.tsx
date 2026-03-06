@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { ScrollArea } from "./ui/scroll-area.js";
 import type { Task, TaskStatus } from "../types.js";
 import { motion } from "motion/react";
-import { getTaskDependencies, addTaskDependency, removeTaskDependency, getTaskSubtasks, createSubtask, toggleSubtask, deleteSubtask } from "../api/taskApi.js";
+import { getTaskDependencies, addTaskDependency, removeTaskDependency, getTaskSubtasks, createSubtask, toggleSubtask, deleteSubtask, updateTask } from "../api/taskApi.js";
 import type { TaskDependencies, Subtask, SubtaskProgress } from "../api/taskApi.js";
 
 interface TaskDetailPanelProps {
   task: Task | null;
   allTasks: Task[];
+  availableAgentNames?: string[];
   onClose: () => void;
   onDelete: (taskId: string) => void;
   onMoveTask: (taskId: string, newStatus: TaskStatus) => void;
@@ -31,7 +32,7 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done",
 };
 
-export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged }: TaskDetailPanelProps) {
   const [dependencies, setDependencies] = useState<TaskDependencies | null>(null);
   const [dependencyLoadingError, setDependencyLoadingError] = useState<string | null>(null);
   const [selectedBlockingTaskId, setSelectedBlockingTaskId] = useState<string>("");
@@ -238,9 +239,31 @@ export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask,
               </div>
 
               <div className="text-sm space-y-2 mb-4">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Agent:</span>
-                  <span>Claude Code</span>
+                  {!task.agentRunning && availableAgentNames.length > 0 ? (
+                    <Select
+                      value={task.agent ?? "__default__"}
+                      onValueChange={(value) => {
+                        const newAgent = value === "__default__" ? null : value;
+                        void updateTask(task.id, { agent: newAgent });
+                      }}
+                    >
+                      <SelectTrigger className="w-36 h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__default__">Default</SelectItem>
+                        {availableAgentNames.map((agentName) => (
+                          <SelectItem key={agentName} value={agentName}>
+                            {agentName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <span>{task.agent || "Default"}</span>
+                  )}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>

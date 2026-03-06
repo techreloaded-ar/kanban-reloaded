@@ -12,6 +12,7 @@ import { TopBar } from './components/TopBar.js';
 import { TaskDetailPanel } from './components/TaskDetailPanel.js';
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog.js';
 import { SettingsPage } from './components/SettingsPage.js';
+import { getConfiguration } from './api/configApi.js';
 
 function getInitialDarkMode(): boolean {
   const stored = localStorage.getItem('kanban-reloaded-dark-mode');
@@ -31,6 +32,7 @@ export function App() {
   const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
   const [subtaskProgressMap, setSubtaskProgressMap] = useState<Map<string, SubtaskProgress>>(new Map());
   const [taskIdPendingDeletion, setTaskIdPendingDeletion] = useState<string | null>(null);
+  const [availableAgentNames, setAvailableAgentNames] = useState<string[]>([]);
   const lastDeleteTaskTitle = useRef('');
 
   // Counter to suppress WebSocket refreshes triggered by local drag-and-drop actions.
@@ -94,9 +96,19 @@ export function App() {
     }
   }, [refreshBlockedTaskIds, refreshSubtaskProgress]);
 
+  const refreshAvailableAgents = useCallback(async () => {
+    try {
+      const config = await getConfiguration();
+      setAvailableAgentNames(Object.keys(config.agents));
+    } catch {
+      // Config fetch failure is non-critical; agent list will be empty
+    }
+  }, []);
+
   useEffect(() => {
     void fetchTasks();
-  }, [fetchTasks]);
+    void refreshAvailableAgents();
+  }, [fetchTasks, refreshAvailableAgents]);
 
   const handleWebSocketTaskEvent = useCallback((event: { type: string }) => {
     // Only suppress WebSocket refreshes for event types that correspond
@@ -125,12 +137,14 @@ export function App() {
     description: string;
     acceptanceCriteria: string;
     priority: TaskPriority;
+    agent?: string | null;
   }) => {
     await createTask({
       title: taskData.title,
       description: taskData.description || undefined,
       acceptanceCriteria: taskData.acceptanceCriteria || undefined,
       priority: taskData.priority,
+      agent: taskData.agent || undefined,
     });
     await fetchTasks();
   }, [fetchTasks]);
@@ -310,6 +324,7 @@ export function App() {
             key="task-detail-panel"
             task={selectedTask}
             allTasks={tasks}
+            availableAgentNames={availableAgentNames}
             onClose={handleCloseDetailPanel}
             onDelete={requestDeleteTask}
             onMoveTask={handleMoveTaskFromPanel}
@@ -323,6 +338,7 @@ export function App() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateTask={handleCreateTask}
+        availableAgentNames={availableAgentNames}
       />
 
       <ConfirmDeleteDialog

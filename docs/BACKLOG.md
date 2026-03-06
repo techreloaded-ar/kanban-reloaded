@@ -802,10 +802,12 @@ I want selezionare quale agent usare per ogni task dalla dashboard,
 so that posso assegnare agent diversi a task diversi senza modificare il file di configurazione.
 
 **Acceptance Criteria**
-- [ ] Nel `CreateTaskModal`, un campo dropdown opzionale "Agent" mostra la lista degli agent configurati (dalla mappa `agents` nel config) piu l'opzione "Default"
-- [ ] Nel `TaskDetailPanel`, la sezione "Agent AI" mostra l'agent assegnato (o "Default") e permette di cambiarlo tramite un dropdown, solo se l'agent non e in esecuzione
-- [ ] Quando il task viene spostato in "In Progress", il sistema usa l'agent assegnato al task per risolvere il comando (logica gia presente in `resolveAgentCommand`)
-- [ ] La lista degli agent disponibili viene recuperata tramite `GET /api/config` e aggiornata quando la configurazione cambia
+- [x] Nel `CreateTaskModal`, un campo dropdown opzionale "Agent" mostra la lista degli agent configurati (dalla mappa `agents` nel config) piu l'opzione "Default"
+- [x] Nel `TaskDetailPanel`, la sezione "Agent AI" mostra l'agent assegnato (o "Default") e permette di cambiarlo tramite un dropdown, solo se l'agent non e in esecuzione
+- [x] Quando il task viene spostato in "In Progress", il sistema usa l'agent assegnato al task per risolvere il comando (logica gia presente in `resolveAgentCommand`)
+- [x] La lista degli agent disponibili viene recuperata tramite `GET /api/config` e aggiornata quando la configurazione cambia
+
+**Status: DONE**
 
 ---
 

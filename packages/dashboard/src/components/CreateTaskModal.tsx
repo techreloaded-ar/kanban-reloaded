@@ -13,14 +13,17 @@ interface CreateTaskModalProps {
     description: string;
     acceptanceCriteria: string;
     priority: TaskPriority;
+    agent?: string | null;
   }) => Promise<void>;
+  availableAgentNames?: string[];
 }
 
-export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgentNames = [] }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -30,6 +33,7 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskMod
     setDescription("");
     setAcceptanceCriteria("");
     setPriority("medium");
+    setSelectedAgent(null);
     setValidationError(null);
     setApiError(null);
     setSubmitting(false);
@@ -53,6 +57,7 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskMod
         description,
         acceptanceCriteria,
         priority,
+        agent: selectedAgent,
       });
       resetForm();
       onClose();
@@ -143,6 +148,33 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask }: CreateTaskMod
               </Button>
             </div>
           </div>
+
+          {availableAgentNames.length > 0 && (
+            <div>
+              <label className="block mb-2">Agent</label>
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  variant={selectedAgent === null ? "default" : "outline"}
+                  onClick={() => setSelectedAgent(null)}
+                  size="sm"
+                >
+                  Default
+                </Button>
+                {availableAgentNames.map((agentName) => (
+                  <Button
+                    key={agentName}
+                    type="button"
+                    variant={selectedAgent === agentName ? "default" : "outline"}
+                    onClick={() => setSelectedAgent(agentName)}
+                    size="sm"
+                  >
+                    {agentName}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {apiError !== null && (
             <p className="text-sm text-destructive">{apiError}</p>

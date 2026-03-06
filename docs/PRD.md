@@ -277,12 +277,22 @@ kanban-reloaded/
 
 ### Development Environment
 
-Ambiente di sviluppo standard Node.js con workspace npm/pnpm.
+Ambiente di sviluppo standard Node.js con workspace pnpm e dev mode integrato.
 
 **Required tools:**
 - Node.js 22.x LTS
 - pnpm 9.x (package manager, workspace support nativo)
 - Git
+
+**Dev mode (`pnpm dev`):**
+
+Avvia in parallelo server Fastify e dashboard Vite dai sorgenti TypeScript, senza necessita di build:
+- **Server** (`packages/server/`) — `tsx watch src/main.ts` avvia il server su `http://127.0.0.1:3000` con auto-restart ad ogni modifica
+- **Dashboard** (`packages/dashboard/`) — `vite` avvia il dev server su `http://localhost:5173` con HMR e proxy configurati per `/api` e `/ws` verso il server
+
+`tsx` usa la condizione `"development"` negli exports di `@kanban-reloaded/core` per risolvere direttamente i sorgenti TypeScript (`./src/index.ts`) senza richiedere il build del pacchetto core.
+
+Il server standalone (`packages/server/src/main.ts`) replica la logica di bootstrap della CLI, supportando `--port` / variabile d'ambiente `PORT` per override della porta.
 
 ### CI/CD & Deployment
 

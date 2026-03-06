@@ -76,4 +76,6 @@ interface Task {
 - **Server binding:** solo `127.0.0.1` (mai `0.0.0.0`)
 - **Sanitizzazione:** ogni input utente e comando agent deve essere sanitizzato
 - **`@fastify/static`:** registrare sempre con `serve: false` per evitare conflitti nel radix tree di `find-my-way` con route parametriche nested (es. `/api/tasks/:id/subtasks`). Gestire i file statici e il fallback SPA nel `setNotFoundHandler`.
-- **Riavvio server dopo build:** il server (`kanban-reloaded serve`) carica i moduli ESM in memoria all'avvio. Dopo un build che tocca `core`, `server` o `cli`, il processo va riavviato per caricare il nuovo codice. Se il server e avviato in un terminale separato, terminarlo e rilanciarlo con `node packages/cli/dist/index.js serve`.
+- **Dev mode:** `pnpm dev` alla root avvia server Fastify (:3000) via `tsx watch` e dashboard Vite (:5173) in parallelo, senza necessita di build. Il server si riavvia automaticamente ad ogni modifica dei sorgenti. La dashboard Vite ha proxy configurati per `/api` e `/ws` verso il server.
+- **Riavvio server in produzione:** in produzione il server (`kanban-reloaded serve`) carica i moduli ESM in memoria all'avvio. Dopo un build che tocca `core`, `server` o `cli`, il processo va riavviato per caricare il nuovo codice.
+- **Exports condizionali di core:** `packages/core/package.json` ha la condizione `"development": "./src/index.ts"` negli exports, che permette a `tsx` di risolvere direttamente i sorgenti TypeScript senza build. In produzione (Node.js standard), viene usato `"import": "./dist/index.js"`.

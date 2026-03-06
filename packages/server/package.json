@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "dev": "tsc --build --watch",
+    "dev": "tsx watch src/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo"
@@ -25,6 +25,7 @@
   },
   "devDependencies": {
     "@types/ws": "^8.5.0",
+    "tsx": "^4.0.0",
     "vitest": "^3.0.0"
   }
 }

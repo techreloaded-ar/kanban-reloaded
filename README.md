@@ -32,12 +32,13 @@ cd kanban-reloaded
 # 2. Install dependencies
 pnpm install
 
-# 3. Build all packages
-pnpm build
-
-# 4. Start the development servers (all packages in parallel)
+# 3. Start the development environment (no build needed)
 pnpm dev
 ```
+
+This starts:
+- **Server** on `http://127.0.0.1:3000` — Fastify API via `tsx watch` (auto-restart on changes)
+- **Dashboard** on `http://localhost:5173` — Vite dev server with HMR and proxy to the API/WebSocket server
 
 ## Available Scripts
 
@@ -46,8 +47,8 @@ Run these from the **repository root**:
 | Command | Description |
 |---|---|
 | `pnpm install` | Install all workspace dependencies |
-| `pnpm build` | Build all packages |
-| `pnpm dev` | Start all packages in watch/dev mode |
+| `pnpm build` | Build all packages (needed only for production/CLI) |
+| `pnpm dev` | Start server (tsx watch, :3000) + dashboard (Vite, :5173) |
 | `pnpm test` | Run tests across all packages (Vitest) |
 | `pnpm typecheck` | Type-check all packages |
 | `pnpm clean` | Remove build artifacts |

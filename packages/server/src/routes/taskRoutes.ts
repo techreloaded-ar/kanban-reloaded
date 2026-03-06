@@ -16,6 +16,7 @@ interface CreateTaskRequestBody {
   description?: string;
   priority?: string;
   acceptanceCriteria?: string;
+  agent?: string;
 }
 
 interface TaskRouteParams {
@@ -29,6 +30,7 @@ interface UpdateTaskRequestBody {
   priority?: string;
   status?: string;
   position?: number;
+  agent?: string | null;
   agentLog?: string | null;
   agentRunning?: boolean;
   executionTime?: number | null;
@@ -118,6 +120,7 @@ export function registerTaskRoutes(
         description: body.description,
         priority: body.priority as TaskPriority | undefined,
         acceptanceCriteria: body.acceptanceCriteria,
+        agent: body.agent,
       });
 
       websocketBroadcaster.broadcastTaskEvent({
@@ -190,13 +193,14 @@ export function registerTaskRoutes(
       const hasPriority = body.priority !== undefined;
       const hasStatus = body.status !== undefined;
       const hasPosition = body.position !== undefined;
+      const hasAgent = body.agent !== undefined;
       const hasAgentLog = body.agentLog !== undefined;
       const hasAgentRunning = body.agentRunning !== undefined;
       const hasExecutionTime = body.executionTime !== undefined;
 
-      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus && !hasPosition && !hasAgentLog && !hasAgentRunning && !hasExecutionTime) {
+      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus && !hasPosition && !hasAgent && !hasAgentLog && !hasAgentRunning && !hasExecutionTime) {
         return reply.status(400).send({
-          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status, position, agentLog, agentRunning, executionTime',
+          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status, position, agent, agentLog, agentRunning, executionTime',
         });
       }
 
@@ -218,13 +222,14 @@ export function registerTaskRoutes(
         });
       }
 
-      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus; position?: number; agentLog?: string | null; agentRunning?: boolean; executionTime?: number | null } = {};
+      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus; position?: number; agent?: string | null; agentLog?: string | null; agentRunning?: boolean; executionTime?: number | null } = {};
       if (hasTitle) updateFields.title = body.title!;
       if (hasDescription) updateFields.description = body.description!;
       if (hasAcceptanceCriteria) updateFields.acceptanceCriteria = body.acceptanceCriteria!;
       if (hasPriority) updateFields.priority = body.priority! as TaskPriority;
       if (hasStatus) updateFields.status = body.status! as TaskStatus;
       if (hasPosition) updateFields.position = body.position!;
+      if (hasAgent) updateFields.agent = body.agent!;
       if (hasAgentLog) updateFields.agentLog = body.agentLog!;
       if (hasAgentRunning) updateFields.agentRunning = body.agentRunning!;
       if (hasExecutionTime) updateFields.executionTime = body.executionTime!;

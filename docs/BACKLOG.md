@@ -822,9 +822,11 @@ I want ricevere una guida chiara quando nessun agent e configurato,
 so that posso capire come configurare l'agent AI la prima volta senza cercare nella documentazione.
 
 **Acceptance Criteria**
-- [ ] Quando nessun `agentCommand` e configurato e la mappa `agents` e vuota, la sezione "Agent AI" nel `TaskDetailPanel` mostra un messaggio informativo con link alla pagina Impostazioni
-- [ ] La pagina Impostazioni mostra template preconfigurati (Claude Code, Aider, script custom) con un pulsante "Usa questo template" che precompila il campo comando
-- [ ] Al primo spostamento di un task in "In Progress" senza agent configurato, viene mostrato un toast/avviso non bloccante che suggerisce di configurare un agent dalla pagina Impostazioni
+- [x] Quando nessun `agentCommand` e configurato e la mappa `agents` e vuota, la sezione "Agent AI" nel `TaskDetailPanel` mostra un messaggio informativo con link alla pagina Impostazioni
+- [x] La pagina Impostazioni mostra template preconfigurati (Claude Code, Aider, script custom) con un pulsante "Usa questo template" che precompila il campo comando
+- [x] Al primo spostamento di un task in "In Progress" senza agent configurato, viene mostrato un toast/avviso non bloccante che suggerisce di configurare un agent dalla pagina Impostazioni
+
+**Status: DONE**
 
 ---
 

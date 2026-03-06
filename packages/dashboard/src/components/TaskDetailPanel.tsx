@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Trash2, Clock, Loader2, Lock, Link, Unlink, Plus, ListChecks } from "lucide-react";
+import { X, Trash2, Clock, Loader2, Lock, Link, Unlink, Plus, ListChecks, Settings } from "lucide-react";
 import { Button } from "./ui/button.js";
 import { Badge } from "./ui/badge.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.js";
@@ -13,11 +13,13 @@ interface TaskDetailPanelProps {
   task: Task | null;
   allTasks: Task[];
   availableAgentNames?: string[];
+  hasAgentConfigured?: boolean;
   onClose: () => void;
   onDelete: (taskId: string) => void;
   onMoveTask: (taskId: string, newStatus: TaskStatus) => void;
   onDependenciesChanged?: () => void;
   onSubtaskProgressChanged?: (taskId: string, progress: SubtaskProgress) => void;
+  onNavigateToSettings?: () => void;
 }
 
 const priorityConfig = {
@@ -32,7 +34,7 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done",
 };
 
-export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], hasAgentConfigured = true, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings }: TaskDetailPanelProps) {
   const [dependencies, setDependencies] = useState<TaskDependencies | null>(null);
   const [dependencyLoadingError, setDependencyLoadingError] = useState<string | null>(null);
   const [selectedBlockingTaskId, setSelectedBlockingTaskId] = useState<string>("");
@@ -238,6 +240,20 @@ export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], onCl
                 )}
               </div>
 
+              {!hasAgentConfigured && !task.agentRunning ? (
+                <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 text-center space-y-2">
+                  <Settings className="h-6 w-6 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Nessun agent configurato. Configura un comando agent per automatizzare lo sviluppo.
+                  </p>
+                  {onNavigateToSettings && (
+                    <Button variant="outline" size="sm" onClick={onNavigateToSettings}>
+                      Vai alle Impostazioni
+                    </Button>
+                  )}
+                </div>
+              ) : (
+              <>
               <div className="text-sm space-y-2 mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Agent:</span>
@@ -284,6 +300,8 @@ export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], onCl
                     <pre className="text-xs font-mono text-foreground whitespace-pre-wrap">{task.agentLog}</pre>
                   </ScrollArea>
                 </div>
+              )}
+              </>
               )}
             </div>
 

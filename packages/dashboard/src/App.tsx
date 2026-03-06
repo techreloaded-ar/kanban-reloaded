@@ -33,6 +33,8 @@ export function App() {
   const [subtaskProgressMap, setSubtaskProgressMap] = useState<Map<string, SubtaskProgress>>(new Map());
   const [taskIdPendingDeletion, setTaskIdPendingDeletion] = useState<string | null>(null);
   const [availableAgentNames, setAvailableAgentNames] = useState<string[]>([]);
+  const [hasAgentConfigured, setHasAgentConfigured] = useState(true); // assume configured until loaded
+  const [noAgentWarningVisible, setNoAgentWarningVisible] = useState(false);
   const lastDeleteTaskTitle = useRef('');
 
   // Counter to suppress WebSocket refreshes triggered by local drag-and-drop actions.
@@ -100,6 +102,8 @@ export function App() {
     try {
       const config = await getConfiguration();
       setAvailableAgentNames(Object.keys(config.agents));
+      const isAnyAgentConfigured = config.agentCommand !== null || Object.keys(config.agents).length > 0;
+      setHasAgentConfigured(isAnyAgentConfigured);
     } catch {
       // Config fetch failure is non-critical; agent list will be empty
     }
@@ -185,7 +189,16 @@ export function App() {
     setTaskIdPendingDeletion(null);
   }, []);
 
+  const showNoAgentWarning = useCallback(() => {
+    setNoAgentWarningVisible(true);
+    setTimeout(() => setNoAgentWarningVisible(false), 5000);
+  }, []);
+
   const handleMoveTask = useCallback(async (taskId: string, newStatus: TaskStatus, newPosition: number) => {
+    if (newStatus === 'in-progress' && !hasAgentConfigured) {
+      showNoAgentWarning();
+    }
+
     let previousTasks: Task[] = [];
     setTasks(currentTasks => {
       previousTasks = currentTasks;
@@ -206,10 +219,13 @@ export function App() {
   }, []);
 
   const handleMoveTaskFromPanel = useCallback(async (taskId: string, newStatus: TaskStatus) => {
+    if (newStatus === 'in-progress' && !hasAgentConfigured) {
+      showNoAgentWarning();
+    }
     // Propagate the error so TaskDetailPanel can display blocking messages
     await updateTask(taskId, { status: newStatus });
     await fetchTasks();
-  }, [fetchTasks]);
+  }, [fetchTasks, hasAgentConfigured, showNoAgentWarning]);
 
   const handleReorderTasks = useCallback(async (taskIds: string[], status: TaskStatus) => {
     let previousTasks: Task[] = [];
@@ -277,6 +293,28 @@ export function App() {
         <main className="flex-1 overflow-auto p-6">
           <ConnectionStatusIndicator connectionLost={connectionLost} />
 
+          {noAgentWarningVisible && (
+            <div className="mb-4 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+              <p className="text-sm text-foreground">
+                Nessun agent configurato. Configura un agent dalla{' '}
+                <button
+                  className="text-primary underline font-medium"
+                  onClick={() => { setCurrentView('settings'); setNoAgentWarningVisible(false); }}
+                >
+                  pagina Impostazioni
+                </button>
+                {' '}per automatizzare lo sviluppo.
+              </p>
+              <button
+                className="text-muted-foreground hover:text-foreground ml-3"
+                onClick={() => setNoAgentWarningVisible(false)}
+                aria-label="Chiudi avviso"
+              >
+                &times;
+              </button>
+            </div>
+          )}
+
           {loadingError !== null ? (
             <div className="flex items-center justify-center p-8">
               <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-center">
@@ -325,11 +363,13 @@ export function App() {
             task={selectedTask}
             allTasks={tasks}
             availableAgentNames={availableAgentNames}
+            hasAgentConfigured={hasAgentConfigured}
             onClose={handleCloseDetailPanel}
             onDelete={requestDeleteTask}
             onMoveTask={handleMoveTaskFromPanel}
             onDependenciesChanged={handleDependenciesChanged}
             onSubtaskProgressChanged={handleSubtaskProgressChanged}
+            onNavigateToSettings={() => { setSelectedTaskId(null); setCurrentView('settings'); }}
           />
         )}
       </AnimatePresence>

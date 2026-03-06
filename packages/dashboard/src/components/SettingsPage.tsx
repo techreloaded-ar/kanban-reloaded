@@ -13,6 +13,21 @@ interface AgentEntry {
 
 const PLACEHOLDER_HELP_TEXT = "Placeholder disponibili: {{title}}, {{description}}, {{acceptanceCriteria}}";
 
+const PRECONFIGURED_TEMPLATES = [
+  {
+    name: "Claude Code",
+    command: "claude --prompt '{{title}}: {{description}}'",
+  },
+  {
+    name: "Aider",
+    command: "aider --message '{{title}}: {{description}}'",
+  },
+  {
+    name: "Script Custom",
+    command: "echo 'Task: {{title}} - {{description}} - Criteri: {{acceptanceCriteria}}'",
+  },
+];
+
 export function SettingsPage() {
   const [configuration, setConfiguration] = useState<ProjectConfiguration | null>(null);
   const [loadingError, setLoadingError] = useState<string | null>(null);
@@ -163,6 +178,35 @@ export function SettingsPage() {
           <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">{PLACEHOLDER_HELP_TEXT}</p>
         </div>
+
+        {!defaultAgentCommand && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Template preconfigurati
+            </p>
+            <div className="grid gap-2">
+              {PRECONFIGURED_TEMPLATES.map((template) => (
+                <div
+                  key={template.name}
+                  className="flex items-center justify-between rounded-md border border-border bg-background p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{template.name}</p>
+                    <p className="text-xs font-mono text-muted-foreground truncate">{template.command}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-3 shrink-0"
+                    onClick={() => setDefaultAgentCommand(template.command)}
+                  >
+                    Usa questo
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Porta Server */}

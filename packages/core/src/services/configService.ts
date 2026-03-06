@@ -1,7 +1,28 @@
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { DatabaseInstance } from '../storage/database.js';
+import { ConfigRepository } from './configRepository.js';
 import { KANBAN_DIRECTORY_NAME, CONFIG_FILENAME } from '../storage/constants.js';
-import type { ProjectConfiguration, ColumnConfiguration, AgentConfiguration, ConfigurationFileError } from '../models/types.js';
+import type {
+  ProjectConfiguration,
+  ColumnConfiguration,
+  AgentConfiguration,
+  AgentDetailedConfiguration,
+} from '../models/types.js';
+
+/**
+ * Chiavi usate nella tabella config per salvare i singoli campi della configurazione.
+ */
+const CONFIG_KEYS = {
+  AGENT_COMMAND: 'agentCommand',
+  AGENTS: 'agents',
+  SERVER_PORT: 'serverPort',
+  COLUMNS: 'columns',
+  WORKING_DIRECTORY: 'workingDirectory',
+  AGENT_ENVIRONMENT_VARIABLES: 'agentEnvironmentVariables',
+  CONFIG_IMPORTED_FROM_FILE: '_configImportedFromFile',
+} as const;
 
 const DEFAULT_COLUMNS: ColumnConfiguration[] = [
   { id: 'backlog', name: 'Backlog', color: '#3498DB' },
@@ -19,15 +40,12 @@ const DEFAULT_CONFIGURATION: ProjectConfiguration = {
 };
 
 /**
- * Contenuto aggiuntivo scritto nel file config.json per mostrare all'utente
- * esempi di template per il campo agentCommand.
- * Questo campo e' solo informativo e non fa parte del tipo ProjectConfiguration.
+ * Mappa eventi emessi dal ConfigService.
+ * Usa il supporto nativo per typed EventEmitter di Node.js 22.
  */
-const AGENT_COMMAND_EXAMPLES = {
-  _description: 'Esempi di template per agentCommand. Copia uno di questi nel campo agentCommand per usarlo.',
-  claudeCode: "claude --prompt '{{title}}: {{description}}'",
-  genericShell: "echo 'Task: {{title}} - {{description}} - Criteri: {{acceptanceCriteria}}'",
-};
+interface ConfigServiceEventMap {
+  configurationChanged: [updatedConfiguration: ProjectConfiguration];
+}
 
 /**
  * Verifica che un valore sia un oggetto ColumnConfiguration valido.
@@ -45,35 +63,137 @@ function isValidColumnConfiguration(value: unknown): value is ColumnConfiguratio
 }
 
 /**
- * Converte un offset di carattere in numero di riga e colonna.
+ * Verifica che un valore sia un AgentDetailedConfiguration valido.
  */
-function convertOffsetToLineAndColumn(
-  fileContent: string,
-  characterOffset: number,
-): { lineNumber: number; columnNumber: number } {
-  const textBeforeError = fileContent.slice(0, characterOffset);
-  const lines = textBeforeError.split('\n');
-  const lineNumber = lines.length;
-  const columnNumber = (lines[lines.length - 1]?.length ?? 0) + 1;
-  return { lineNumber, columnNumber };
+function isValidAgentDetailedConfiguration(value: unknown): value is AgentDetailedConfiguration {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate['command'] !== 'string') {
+    return false;
+  }
+  if ('workingDirectory' in candidate && typeof candidate['workingDirectory'] !== 'string') {
+    return false;
+  }
+  return true;
 }
 
 /**
- * Servizio per la gestione della configurazione del progetto tramite file config.json.
- * Il file viene creato automaticamente in `.kanban-reloaded/config.json` con i valori predefiniti
- * se non esiste ancora.
+ * Servizio per la gestione della configurazione del progetto tramite database SQLite.
+ *
+ * I settings sono salvati nella tabella `config` come coppie chiave-valore JSON.
+ * Al primo avvio, se esiste un file `config.json` legacy, i suoi valori vengono
+ * importati nel database (seed) e il file viene rinominato in `config.json.imported`.
+ *
+ * Pattern di lettura: read-through (ogni chiamata a `loadConfiguration()` legge dal DB).
+ * Reattivita: emette l'evento `configurationChanged` dopo ogni salvataggio.
  */
-export class ConfigService {
+export class ConfigService extends EventEmitter<ConfigServiceEventMap> {
+  private readonly configRepository: ConfigRepository;
   private readonly projectDirectoryPath: string;
 
-  constructor(projectDirectoryPath: string) {
+  constructor(database: DatabaseInstance, projectDirectoryPath: string) {
+    super();
+    this.configRepository = new ConfigRepository(database);
     this.projectDirectoryPath = projectDirectoryPath;
   }
 
   /**
-   * Restituisce il percorso assoluto del file config.json.
+   * Carica la configurazione corrente dal database.
+   * Se il database non contiene ancora settings, scrive i valori predefiniti.
+   * Ogni campo mancante viene riempito con il valore di default (forward compatibility).
+   *
+   * @returns La configurazione completa e validata
    */
-  getConfigFilePath(): string {
+  loadConfiguration(): ProjectConfiguration {
+    const allEntries = this.configRepository.getAllEntries();
+
+    // Se il DB e vuoto (nessuna chiave di configurazione), scrivi i default
+    if (!this.hasDatabaseConfiguration(allEntries)) {
+      this.writeConfigurationToDatabase(DEFAULT_CONFIGURATION);
+      return { ...DEFAULT_CONFIGURATION, columns: [...DEFAULT_COLUMNS] };
+    }
+
+    return this.parseConfigurationFromEntries(allEntries);
+  }
+
+  /**
+   * Salva una configurazione parziale nel database.
+   * Carica la configurazione corrente, applica i campi aggiornati,
+   * scrive nel DB e emette l'evento `configurationChanged`.
+   *
+   * @param updatedFields - I campi della configurazione da aggiornare
+   * @returns La configurazione completa dopo il merge
+   */
+  saveConfiguration(updatedFields: Partial<ProjectConfiguration>): ProjectConfiguration {
+    const currentConfiguration = this.loadConfiguration();
+
+    const mergedConfiguration: ProjectConfiguration = {
+      ...currentConfiguration,
+      ...updatedFields,
+    };
+
+    this.writeConfigurationToDatabase(mergedConfiguration);
+    this.emit('configurationChanged', mergedConfiguration);
+
+    return mergedConfiguration;
+  }
+
+  /**
+   * Importa i settings dal file `config.json` legacy nel database.
+   * Operazione idempotente: se il seed e gia avvenuto, non fa nulla.
+   *
+   * Se il file esiste e il seed non e ancora avvenuto:
+   * 1. Legge e valida il contenuto del file
+   * 2. Scrive ogni campo nel database
+   * 3. Imposta il flag `_configImportedFromFile`
+   * 4. Rinomina il file in `config.json.imported`
+   *
+   * Se il file non esiste, scrive i default nel DB (se non ci sono gia).
+   */
+  seedFromConfigFile(): void {
+    // Controlla se il seed e gia avvenuto
+    if (this.configRepository.hasKey(CONFIG_KEYS.CONFIG_IMPORTED_FROM_FILE)) {
+      return;
+    }
+
+    const configFilePath = this.getLegacyConfigFilePath();
+
+    if (fs.existsSync(configFilePath)) {
+      const configuration = this.readAndValidateLegacyConfigFile(configFilePath);
+      this.writeConfigurationToDatabase(configuration);
+      this.configRepository.setValueByKey(
+        CONFIG_KEYS.CONFIG_IMPORTED_FROM_FILE,
+        JSON.stringify(true),
+      );
+
+      // Rinomina il file legacy per sicurezza (non lo eliminiamo)
+      const importedFilePath = configFilePath + '.imported';
+      try {
+        fs.renameSync(configFilePath, importedFilePath);
+      } catch {
+        // Se il rename fallisce (permessi, lock), non e critico: il flag nel DB
+        // impedira comunque un secondo import
+      }
+    } else {
+      // Nessun file legacy: scrivi i default nel DB se non ci sono gia
+      const allEntries = this.configRepository.getAllEntries();
+      if (!this.hasDatabaseConfiguration(allEntries)) {
+        this.writeConfigurationToDatabase(DEFAULT_CONFIGURATION);
+      }
+      this.configRepository.setValueByKey(
+        CONFIG_KEYS.CONFIG_IMPORTED_FROM_FILE,
+        JSON.stringify(true),
+      );
+    }
+  }
+
+  /**
+   * Restituisce il percorso del file config.json legacy.
+   * Usato solo per il seed iniziale.
+   */
+  private getLegacyConfigFilePath(): string {
     return path.join(
       this.projectDirectoryPath,
       KANBAN_DIRECTORY_NAME,
@@ -82,240 +202,187 @@ export class ConfigService {
   }
 
   /**
-   * Carica la configurazione dal file config.json.
-   * Se il file non esiste, lo crea con i valori predefiniti.
-   * Se il file esiste, lo legge, lo analizza e lo valida.
-   *
-   * @returns La configurazione del progetto validata
-   * @throws Error se il JSON e' malformato o i campi non sono validi
+   * Verifica se nel database ci sono gia chiavi di configurazione (escluso il flag di import).
    */
-  loadConfiguration(): ProjectConfiguration {
-    const configFilePath = this.getConfigFilePath();
-    const kanbanDirectoryPath = path.dirname(configFilePath);
-
-    if (!fs.existsSync(configFilePath)) {
-      // Crea la directory .kanban-reloaded/ se non esiste
-      fs.mkdirSync(kanbanDirectoryPath, { recursive: true });
-
-      // Scrivi il file config.json con i valori predefiniti e gli esempi informativi
-      const defaultConfigurationWithExamples = {
-        ...DEFAULT_CONFIGURATION,
-        agentCommandExamples: AGENT_COMMAND_EXAMPLES,
-      };
-      const defaultConfigurationJson = JSON.stringify(defaultConfigurationWithExamples, null, 2) + '\n';
-      fs.writeFileSync(configFilePath, defaultConfigurationJson, 'utf-8');
-
-      return { ...DEFAULT_CONFIGURATION, columns: [...DEFAULT_COLUMNS] };
+  private hasDatabaseConfiguration(entries: Map<string, string>): boolean {
+    for (const key of entries.keys()) {
+      if (key !== CONFIG_KEYS.CONFIG_IMPORTED_FROM_FILE) {
+        return true;
+      }
     }
+    return false;
+  }
 
-    // Leggi e analizza il file JSON esistente
-    const fileContent = fs.readFileSync(configFilePath, 'utf-8');
+  /**
+   * Scrive tutti i campi della configurazione nel database come coppie chiave-valore JSON.
+   */
+  private writeConfigurationToDatabase(configuration: ProjectConfiguration): void {
+    this.configRepository.setValueByKey(
+      CONFIG_KEYS.AGENT_COMMAND,
+      JSON.stringify(configuration.agentCommand),
+    );
+    this.configRepository.setValueByKey(
+      CONFIG_KEYS.AGENTS,
+      JSON.stringify(configuration.agents),
+    );
+    this.configRepository.setValueByKey(
+      CONFIG_KEYS.SERVER_PORT,
+      JSON.stringify(configuration.serverPort),
+    );
+    this.configRepository.setValueByKey(
+      CONFIG_KEYS.COLUMNS,
+      JSON.stringify(configuration.columns),
+    );
+    this.configRepository.setValueByKey(
+      CONFIG_KEYS.WORKING_DIRECTORY,
+      JSON.stringify(configuration.workingDirectory),
+    );
+    this.configRepository.setValueByKey(
+      CONFIG_KEYS.AGENT_ENVIRONMENT_VARIABLES,
+      JSON.stringify(configuration.agentEnvironmentVariables),
+    );
+  }
 
-    let parsedContent: unknown;
+  /**
+   * Costruisce un oggetto ProjectConfiguration dai valori letti dal database.
+   * Ogni campo mancante viene riempito con il valore predefinito.
+   */
+  private parseConfigurationFromEntries(entries: Map<string, string>): ProjectConfiguration {
+    return {
+      agentCommand: this.parseJsonValueOrDefault(
+        entries.get(CONFIG_KEYS.AGENT_COMMAND),
+        DEFAULT_CONFIGURATION.agentCommand,
+        this.isValidAgentCommand,
+      ),
+      agents: this.parseJsonValueOrDefault(
+        entries.get(CONFIG_KEYS.AGENTS),
+        { ...DEFAULT_CONFIGURATION.agents },
+        this.isValidAgentsMap,
+      ),
+      serverPort: this.parseJsonValueOrDefault(
+        entries.get(CONFIG_KEYS.SERVER_PORT),
+        DEFAULT_CONFIGURATION.serverPort,
+        this.isValidServerPort,
+      ),
+      columns: this.parseJsonValueOrDefault(
+        entries.get(CONFIG_KEYS.COLUMNS),
+        [...DEFAULT_CONFIGURATION.columns],
+        this.isValidColumnsArray,
+      ),
+      workingDirectory: this.parseJsonValueOrDefault(
+        entries.get(CONFIG_KEYS.WORKING_DIRECTORY),
+        DEFAULT_CONFIGURATION.workingDirectory,
+        this.isValidWorkingDirectory,
+      ),
+      agentEnvironmentVariables: this.parseJsonValueOrDefault(
+        entries.get(CONFIG_KEYS.AGENT_ENVIRONMENT_VARIABLES),
+        { ...DEFAULT_CONFIGURATION.agentEnvironmentVariables },
+        this.isValidEnvironmentVariablesMap,
+      ),
+    };
+  }
+
+  /**
+   * Parsa un valore JSON dalla stringa del database.
+   * Se il valore e null/undefined, non parsabile, o non supera la validazione,
+   * restituisce il valore di default.
+   */
+  private parseJsonValueOrDefault<T>(
+    jsonString: string | undefined,
+    defaultValue: T,
+    validator: (value: unknown) => value is T,
+  ): T {
+    if (jsonString === undefined) {
+      return defaultValue;
+    }
     try {
-      parsedContent = JSON.parse(fileContent);
-    } catch (parseError: unknown) {
-      const errorDetails = this.buildJsonParseErrorDetails(
-        fileContent,
-        parseError,
-        configFilePath,
-      );
-      throw new Error(errorDetails.message);
+      const parsed: unknown = JSON.parse(jsonString);
+      return validator(parsed) ? parsed : defaultValue;
+    } catch {
+      return defaultValue;
     }
-
-    // Valida la struttura del contenuto analizzato
-    return this.validateConfiguration(parsedContent, configFilePath);
   }
 
-  /**
-   * Costruisce un messaggio di errore dettagliato per errori di parsing JSON,
-   * includendo riga e colonna se disponibili.
-   */
-  private buildJsonParseErrorDetails(
-    fileContent: string,
-    parseError: unknown,
-    configFilePath: string,
-  ): ConfigurationFileError {
-    let message = `Errore di parsing in ${configFilePath}: il file non contiene JSON valido`;
-    let lineNumber: number | undefined;
-    let columnNumber: number | undefined;
+  // --- Validatori per i singoli campi della configurazione ---
 
-    if (parseError instanceof SyntaxError) {
-      const positionMatch = parseError.message.match(/position\s+(\d+)/i);
-      if (positionMatch) {
-        const characterOffset = parseInt(positionMatch[1], 10);
-        const position = convertOffsetToLineAndColumn(fileContent, characterOffset);
-        lineNumber = position.lineNumber;
-        columnNumber = position.columnNumber;
-        message += ` (riga ${lineNumber}, colonna ${columnNumber})`;
-      }
-      message += `. Dettaglio: ${parseError.message}`;
-    }
-
-    return { filePath: configFilePath, message, lineNumber, columnNumber };
+  private isValidAgentCommand(value: unknown): value is string | null {
+    return value === null || typeof value === 'string';
   }
 
-  /**
-   * Valida che il contenuto analizzato dal JSON abbia la struttura corretta
-   * per ProjectConfiguration.
-   */
-  private validateConfiguration(
-    parsedContent: unknown,
-    configFilePath: string,
-  ): ProjectConfiguration {
-    if (typeof parsedContent !== 'object' || parsedContent === null || Array.isArray(parsedContent)) {
-      throw new Error(
-        `Errore di validazione in ${configFilePath}: il contenuto deve essere un oggetto JSON`,
-      );
+  private isValidAgentsMap(value: unknown): value is AgentConfiguration {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return false;
     }
-
-    const configObject = parsedContent as Record<string, unknown>;
-
-    // Valida serverPort
-    if ('serverPort' in configObject && typeof configObject['serverPort'] !== 'number') {
-      throw new Error(
-        `Errore di validazione in ${configFilePath}: il campo 'serverPort' deve essere un numero, ricevuto ${typeof configObject['serverPort']}`,
-      );
+    const map = value as Record<string, unknown>;
+    for (const agentValue of Object.values(map)) {
+      if (typeof agentValue === 'string') continue;
+      if (!isValidAgentDetailedConfiguration(agentValue)) return false;
     }
-
-    // Valida agentCommand
-    if (
-      'agentCommand' in configObject &&
-      configObject['agentCommand'] !== null &&
-      typeof configObject['agentCommand'] !== 'string'
-    ) {
-      throw new Error(
-        `Errore di validazione in ${configFilePath}: il campo 'agentCommand' deve essere una stringa o null, ricevuto ${typeof configObject['agentCommand']}`,
-      );
-    }
-
-    // Valida agents (accetta sia stringhe che oggetti con campo command)
-    if ('agents' in configObject) {
-      if (typeof configObject['agents'] !== 'object' || configObject['agents'] === null || Array.isArray(configObject['agents'])) {
-        throw new Error(
-          `Errore di validazione in ${configFilePath}: il campo 'agents' deve essere un oggetto (mappa nome agent -> template comando o configurazione dettagliata)`,
-        );
-      }
-      const agentsMap = configObject['agents'] as Record<string, unknown>;
-      for (const [agentName, agentValue] of Object.entries(agentsMap)) {
-        if (typeof agentValue === 'string') {
-          continue; // stringa semplice (template comando) — valida
-        }
-        if (typeof agentValue === 'object' && agentValue !== null && !Array.isArray(agentValue)) {
-          const detailedConfig = agentValue as Record<string, unknown>;
-          if (typeof detailedConfig['command'] !== 'string') {
-            throw new Error(
-              `Errore di validazione in ${configFilePath}: l'agent '${agentName}' come oggetto deve avere un campo 'command' di tipo stringa`,
-            );
-          }
-          if ('workingDirectory' in detailedConfig && typeof detailedConfig['workingDirectory'] !== 'string') {
-            throw new Error(
-              `Errore di validazione in ${configFilePath}: il campo 'workingDirectory' dell'agent '${agentName}' deve essere una stringa`,
-            );
-          }
-          continue;
-        }
-        throw new Error(
-          `Errore di validazione in ${configFilePath}: il valore dell'agent '${agentName}' deve essere una stringa (template comando) o un oggetto con campo 'command', ricevuto ${typeof agentValue}`,
-        );
-      }
-    }
-
-    // Valida workingDirectory
-    if ('workingDirectory' in configObject && configObject['workingDirectory'] !== null && typeof configObject['workingDirectory'] !== 'string') {
-      throw new Error(
-        `Errore di validazione in ${configFilePath}: il campo 'workingDirectory' deve essere una stringa o null, ricevuto ${typeof configObject['workingDirectory']}`,
-      );
-    }
-
-    // Valida columns
-    if ('columns' in configObject) {
-      if (!Array.isArray(configObject['columns'])) {
-        throw new Error(
-          `Errore di validazione in ${configFilePath}: il campo 'columns' deve essere un array, ricevuto ${typeof configObject['columns']}`,
-        );
-      }
-
-      for (let columnIndex = 0; columnIndex < configObject['columns'].length; columnIndex++) {
-        const columnEntry = configObject['columns'][columnIndex] as unknown;
-        if (!isValidColumnConfiguration(columnEntry)) {
-          throw new Error(
-            `Errore di validazione in ${configFilePath}: l'elemento ${columnIndex} di 'columns' deve avere le proprieta 'id', 'name' e 'color' di tipo stringa`,
-          );
-        }
-      }
-    }
-
-    // Valida agentEnvironmentVariables
-    if ('agentEnvironmentVariables' in configObject) {
-      if (typeof configObject['agentEnvironmentVariables'] !== 'object' || configObject['agentEnvironmentVariables'] === null || Array.isArray(configObject['agentEnvironmentVariables'])) {
-        throw new Error(
-          `Errore di validazione in ${configFilePath}: il campo 'agentEnvironmentVariables' deve essere un oggetto (mappa chiave -> valore stringa)`,
-        );
-      }
-      const envVarsMap = configObject['agentEnvironmentVariables'] as Record<string, unknown>;
-      for (const [envKey, envValue] of Object.entries(envVarsMap)) {
-        if (typeof envValue !== 'string') {
-          throw new Error(
-            `Errore di validazione in ${configFilePath}: il valore della variabile d'ambiente '${envKey}' deve essere una stringa, ricevuto ${typeof envValue}`,
-          );
-        }
-      }
-    }
-
-    // Costruisci la configurazione validata con fallback ai valori predefiniti
-    const validatedConfiguration: ProjectConfiguration = {
-      agentCommand: 'agentCommand' in configObject
-        ? (configObject['agentCommand'] as string | null)
-        : DEFAULT_CONFIGURATION.agentCommand,
-      agents: 'agents' in configObject
-        ? (configObject['agents'] as AgentConfiguration)
-        : { ...DEFAULT_CONFIGURATION.agents },
-      serverPort: 'serverPort' in configObject
-        ? (configObject['serverPort'] as number)
-        : DEFAULT_CONFIGURATION.serverPort,
-      columns: 'columns' in configObject
-        ? (configObject['columns'] as ColumnConfiguration[])
-        : [...DEFAULT_CONFIGURATION.columns],
-      workingDirectory: 'workingDirectory' in configObject
-        ? (configObject['workingDirectory'] as string | null)
-        : DEFAULT_CONFIGURATION.workingDirectory,
-      agentEnvironmentVariables: 'agentEnvironmentVariables' in configObject
-        ? (configObject['agentEnvironmentVariables'] as Record<string, string>)
-        : { ...DEFAULT_CONFIGURATION.agentEnvironmentVariables },
-    };
-
-    return validatedConfiguration;
+    return true;
   }
 
+  private isValidServerPort(value: unknown): value is number {
+    return typeof value === 'number' && value > 0 && value <= 65535;
+  }
+
+  private isValidColumnsArray(value: unknown): value is ColumnConfiguration[] {
+    if (!Array.isArray(value)) return false;
+    return value.every(isValidColumnConfiguration);
+  }
+
+  private isValidWorkingDirectory(value: unknown): value is string | null {
+    return value === null || typeof value === 'string';
+  }
+
+  private isValidEnvironmentVariablesMap(value: unknown): value is Record<string, string> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return false;
+    }
+    const map = value as Record<string, unknown>;
+    return Object.values(map).every((v) => typeof v === 'string');
+  }
+
+  // --- Lettura e validazione del file config.json legacy (solo per il seed) ---
+
   /**
-   * Salva una configurazione parziale nel file config.json.
-   * Carica la configurazione corrente, applica i campi aggiornati,
-   * e scrive il risultato su disco preservando il campo informativo agentCommandExamples.
-   *
-   * @param updatedFields - I campi della configurazione da aggiornare
-   * @returns La configurazione completa dopo il merge
+   * Legge il file config.json legacy, lo parsa e restituisce una ProjectConfiguration validata.
+   * I campi mancanti vengono riempiti con i default.
+   * Se il JSON e malformato o i campi non sono validi, restituisce i default completi.
    */
-  saveConfiguration(updatedFields: Partial<ProjectConfiguration>): ProjectConfiguration {
-    // 1. Carica la configurazione corrente (crea il file se non esiste)
-    const currentConfiguration = this.loadConfiguration();
+  private readAndValidateLegacyConfigFile(configFilePath: string): ProjectConfiguration {
+    try {
+      const fileContent = fs.readFileSync(configFilePath, 'utf-8');
+      const parsed: unknown = JSON.parse(fileContent);
 
-    // 2. Merge dei campi aggiornati nella configurazione corrente
-    const mergedConfiguration: ProjectConfiguration = {
-      ...currentConfiguration,
-      ...updatedFields,
-    };
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        return { ...DEFAULT_CONFIGURATION };
+      }
 
-    // 3. Scrivi la configurazione aggiornata su disco, preservando gli esempi informativi
-    const configFilePath = this.getConfigFilePath();
-    const configurationWithExamples = {
-      ...mergedConfiguration,
-      agentCommandExamples: AGENT_COMMAND_EXAMPLES,
-    };
-    const configurationJson = JSON.stringify(configurationWithExamples, null, 2) + '\n';
-    fs.writeFileSync(configFilePath, configurationJson, 'utf-8');
+      const configObject = parsed as Record<string, unknown>;
 
-    // 4. Restituisci la configurazione completa (senza il campo informativo)
-    return mergedConfiguration;
+      return {
+        agentCommand: this.isValidAgentCommand(configObject['agentCommand'])
+          ? configObject['agentCommand']
+          : DEFAULT_CONFIGURATION.agentCommand,
+        agents: this.isValidAgentsMap(configObject['agents'])
+          ? configObject['agents']
+          : { ...DEFAULT_CONFIGURATION.agents },
+        serverPort: this.isValidServerPort(configObject['serverPort'])
+          ? configObject['serverPort']
+          : DEFAULT_CONFIGURATION.serverPort,
+        columns: this.isValidColumnsArray(configObject['columns'])
+          ? configObject['columns']
+          : [...DEFAULT_CONFIGURATION.columns],
+        workingDirectory: this.isValidWorkingDirectory(configObject['workingDirectory'])
+          ? configObject['workingDirectory']
+          : DEFAULT_CONFIGURATION.workingDirectory,
+        agentEnvironmentVariables: this.isValidEnvironmentVariablesMap(configObject['agentEnvironmentVariables'])
+          ? configObject['agentEnvironmentVariables']
+          : { ...DEFAULT_CONFIGURATION.agentEnvironmentVariables },
+      };
+    } catch {
+      // Se il file non e leggibile o il JSON e invalido, usa i default
+      return { ...DEFAULT_CONFIGURATION };
+    }
   }
 }

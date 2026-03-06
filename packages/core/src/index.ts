@@ -33,3 +33,4 @@ export type { DatabaseInstance, DatabaseInitializationResult } from './storage/d
 // Servizi
 export { TaskService } from './services/taskService.js';
 export { ConfigService } from './services/configService.js';
+export { ConfigRepository } from './services/configRepository.js';

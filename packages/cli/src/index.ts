@@ -251,8 +251,7 @@ program
 
         // Se il nuovo stato e "in-progress", tenta di lanciare l'agent
         if (resolvedStatus === 'in-progress') {
-          const configService = new ConfigService(projectDirectoryPath);
-          const configuration = configService.loadConfiguration();
+          const configService = new ConfigService(database, projectDirectoryPath);
 
           const consoleLogger: AgentLauncherLogger = {
             info: (message: string) => console.log(message),
@@ -261,9 +260,9 @@ program
           };
 
           const agentLauncher = new AgentLauncher(
-            configuration.agentCommand,
+            configService,
             consoleLogger,
-            configuration.agents,
+            projectDirectoryPath,
           );
           agentLauncher.setTaskService(taskService);
 
@@ -449,9 +448,14 @@ program
     const projectDirectoryPath =
       options.directory ?? discoverProjectDirectory() ?? process.cwd();
 
-    // Carica la configurazione per la porta predefinita
-    const configService = new ConfigService(projectDirectoryPath);
+    // Carica la configurazione per la porta predefinita.
+    // Apriamo il database temporaneamente solo per leggere la porta configurata;
+    // createServer() inizializzera il proprio database internamente.
+    const tempDatabaseResult = initializeDatabase(projectDirectoryPath);
+    const configService = new ConfigService(tempDatabaseResult.database, projectDirectoryPath);
+    configService.seedFromConfigFile();
     const configuration = configService.loadConfiguration();
+    tempDatabaseResult.closeConnection();
 
     const port = options.port
       ? parseInt(options.port, 10)
@@ -467,16 +471,51 @@ program
         projectDirectoryPath,
       });
 
-      // Gestione chiusura pulita con Ctrl+C
-      const handleShutdown = async () => {
+      // Gestione chiusura pulita.
+      // Su Windows, la chiusura del terminale non invia SIGTERM — il processo viene
+      // ucciso senza preavviso. Per questo usiamo anche l'evento 'exit' (sincrono)
+      // come ultima risorsa per chiudere almeno la connessione al database.
+      let shutdownInProgress = false;
+
+      const handleGracefulShutdown = async () => {
+        if (shutdownInProgress) return;
+        shutdownInProgress = true;
         console.log('\nChiusura in corso...');
-        await server.close();
+
+        // Timeout di sicurezza: se server.close() non si completa in 3 secondi,
+        // forza l'uscita per evitare processi zombie.
+        const forceExitTimeout = setTimeout(() => {
+          console.error('Timeout di chiusura raggiunto, uscita forzata.');
+          closeConnection();
+          process.exit(1);
+        }, 3000);
+        forceExitTimeout.unref(); // Non deve impedire l'uscita del processo
+
+        try {
+          await server.close();
+        } catch {
+          // Ignora errori durante la chiusura
+        }
+        clearTimeout(forceExitTimeout);
         closeConnection();
         process.exit(0);
       };
 
-      process.on('SIGINT', () => void handleShutdown());
-      process.on('SIGTERM', () => void handleShutdown());
+      // Ctrl+C e segnali di terminazione
+      process.on('SIGINT', () => void handleGracefulShutdown());
+      process.on('SIGTERM', () => void handleGracefulShutdown());
+
+      // Ultima risorsa: chiudi almeno il database quando il processo sta uscendo.
+      // L'evento 'exit' e sincrono, quindi possiamo solo fare operazioni sincrone
+      // (better-sqlite3 close() e sincrono, server.close() no — ma a questo punto
+      // il socket viene rilasciato comunque dal sistema operativo).
+      process.on('exit', () => {
+        try {
+          closeConnection();
+        } catch {
+          // Ignora — potrebbe essere gia chiusa
+        }
+      });
 
       const actualPort = await startServer(server, port);
       console.log(

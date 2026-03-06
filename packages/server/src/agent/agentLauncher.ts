@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import type { Task, TaskService, AgentConfiguration, AgentDetailedConfiguration } from '@kanban-reloaded/core';
+import type { ConfigService } from '@kanban-reloaded/core';
 import type { WebSocketBroadcaster, WebSocketEventPayload } from '../websocket/websocketBroadcaster.js';
 
 /**
@@ -56,14 +57,11 @@ export function sanitizeShellValue(unsafeValue: string): string {
  * - Terminare i processi su richiesta (SIGTERM)
  */
 export class AgentLauncher {
-  private readonly defaultAgentCommand: string | null;
-  private readonly agentConfigurationMap: AgentConfiguration;
+  private readonly configService: ConfigService;
   private readonly logger: AgentLauncherLogger;
   private readonly activeAgentProcesses: Map<string, ChildProcess> = new Map();
   private readonly agentStartTimestamps: Map<string, number> = new Map();
   private readonly projectDirectoryPath: string;
-  private readonly globalWorkingDirectory: string | null;
-  private readonly agentEnvironmentVariables: Record<string, string>;
 
   /**
    * Dipendenze iniettate dopo la costruzione, poiche il server le crea
@@ -73,19 +71,13 @@ export class AgentLauncher {
   private websocketBroadcaster: WebSocketBroadcaster | null = null;
 
   constructor(
-    defaultAgentCommand: string | null,
+    configService: ConfigService,
     logger: AgentLauncherLogger,
-    agentConfigurationMap: AgentConfiguration = {},
     projectDirectoryPath: string = process.cwd(),
-    globalWorkingDirectory: string | null = null,
-    agentEnvironmentVariables: Record<string, string> = {},
   ) {
-    this.defaultAgentCommand = defaultAgentCommand;
-    this.agentConfigurationMap = agentConfigurationMap;
+    this.configService = configService;
     this.logger = logger;
     this.projectDirectoryPath = projectDirectoryPath;
-    this.globalWorkingDirectory = globalWorkingDirectory;
-    this.agentEnvironmentVariables = agentEnvironmentVariables;
   }
 
   /**
@@ -118,8 +110,11 @@ export class AgentLauncher {
    * del task vengono sanitizzati per prevenire command injection.
    */
   launchForTask(task: Task): AgentLaunchResult {
+    // Leggi la configurazione fresca dal database ad ogni lancio
+    const currentConfiguration = this.configService.loadConfiguration();
+
     // Risolvi il comando agent e la directory di lavoro
-    const { command: resolvedAgentCommand, workingDirectory: resolvedWorkingDirectory } = this.resolveAgentCommandAndWorkingDirectory(task);
+    const { command: resolvedAgentCommand, workingDirectory: resolvedWorkingDirectory } = this.resolveAgentCommandAndWorkingDirectory(task, currentConfiguration);
 
     if (!resolvedAgentCommand || resolvedAgentCommand.trim().length === 0) {
       this.logger.info(
@@ -157,8 +152,9 @@ export class AgentLauncher {
     try {
       // Merge le variabili d'ambiente configurate con quelle del processo padre.
       // Le variabili configurate sovrascrivono quelle con lo stesso nome nel processo padre.
-      const mergedEnvironment = Object.keys(this.agentEnvironmentVariables).length > 0
-        ? { ...process.env, ...this.agentEnvironmentVariables }
+      const agentEnvironmentVariables = currentConfiguration.agentEnvironmentVariables;
+      const mergedEnvironment = Object.keys(agentEnvironmentVariables).length > 0
+        ? { ...process.env, ...agentEnvironmentVariables }
         : undefined; // undefined = eredita process.env (default di spawn)
 
       const childProcess = spawn(executable, commandArguments, {
@@ -315,8 +311,11 @@ export class AgentLauncher {
    * Se il percorso e relativo, viene risolto rispetto alla directory del progetto.
    * Se il percorso non esiste o non e una directory, logga un warning e usa il default.
    */
-  private resolveWorkingDirectory(agentSpecificWorkingDirectory?: string): string {
-    const candidatePath = agentSpecificWorkingDirectory ?? this.globalWorkingDirectory;
+  private resolveWorkingDirectory(
+    globalWorkingDirectory: string | null,
+    agentSpecificWorkingDirectory?: string,
+  ): string {
+    const candidatePath = agentSpecificWorkingDirectory ?? globalWorkingDirectory;
 
     if (!candidatePath) {
       return this.projectDirectoryPath;
@@ -351,11 +350,14 @@ export class AgentLauncher {
    * 3. Se il task non ha un campo `agent`, usa il comando di default
    * 4. La directory di lavoro segue la priorita: agent specifico > globale > progetto
    */
-  private resolveAgentCommandAndWorkingDirectory(task: Task): { command: string | null; workingDirectory: string } {
+  private resolveAgentCommandAndWorkingDirectory(
+    task: Task,
+    configuration: { agentCommand: string | null; agents: AgentConfiguration; workingDirectory: string | null },
+  ): { command: string | null; workingDirectory: string } {
     let agentSpecificWorkingDirectory: string | undefined;
 
     if (task.agent) {
-      const agentValue = this.agentConfigurationMap[task.agent];
+      const agentValue = configuration.agents[task.agent];
       if (agentValue) {
         this.logger.info(
           `Task ${task.displayId}: uso agent '${task.agent}' con comando specifico dalla configurazione.`,
@@ -363,7 +365,7 @@ export class AgentLauncher {
         agentSpecificWorkingDirectory = this.extractWorkingDirectoryFromAgentValue(agentValue);
         return {
           command: this.extractCommandFromAgentValue(agentValue),
-          workingDirectory: this.resolveWorkingDirectory(agentSpecificWorkingDirectory),
+          workingDirectory: this.resolveWorkingDirectory(configuration.workingDirectory, agentSpecificWorkingDirectory),
         };
       }
 
@@ -375,8 +377,8 @@ export class AgentLauncher {
     }
 
     return {
-      command: this.defaultAgentCommand,
-      workingDirectory: this.resolveWorkingDirectory(),
+      command: configuration.agentCommand,
+      workingDirectory: this.resolveWorkingDirectory(configuration.workingDirectory),
     };
   }
 

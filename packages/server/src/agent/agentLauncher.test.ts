@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentLauncher, sanitizeShellValue } from './agentLauncher.js';
 import type { AgentLauncherLogger } from './agentLauncher.js';
-import type { Task } from '@kanban-reloaded/core';
+import type { Task, ProjectConfiguration, ConfigService } from '@kanban-reloaded/core';
 
 /**
  * Crea un logger mock per i test.
@@ -35,6 +35,31 @@ function createTestTask(overrides?: Partial<Task>): Task {
     position: 0,
     ...overrides,
   };
+}
+
+/**
+ * Crea un ConfigService mock che restituisce la configurazione specificata.
+ */
+function createMockConfigService(
+  overrides?: Partial<ProjectConfiguration>,
+): ConfigService {
+  const configuration: ProjectConfiguration = {
+    agentCommand: null,
+    agents: {},
+    serverPort: 3000,
+    columns: [],
+    workingDirectory: null,
+    agentEnvironmentVariables: {},
+    ...overrides,
+  };
+
+  return {
+    loadConfiguration: vi.fn(() => configuration),
+    saveConfiguration: vi.fn(() => configuration),
+    seedFromConfigFile: vi.fn(),
+    on: vi.fn(),
+    emit: vi.fn(),
+  } as unknown as ConfigService;
 }
 
 describe('sanitizeShellValue', () => {
@@ -105,20 +130,17 @@ describe('AgentLauncher', () => {
   });
 
   describe('costruzione e configurazione', () => {
-    it('crea un istanza con comando agent nullo', () => {
-      const launcher = new AgentLauncher(null, mockLogger);
-      expect(launcher.getActiveAgentCount()).toBe(0);
-    });
-
-    it('crea un istanza con comando agent configurato', () => {
-      const launcher = new AgentLauncher('echo "test"', mockLogger);
+    it('crea un istanza con ConfigService', () => {
+      const mockConfigService = createMockConfigService();
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       expect(launcher.getActiveAgentCount()).toBe(0);
     });
   });
 
   describe('launchForTask', () => {
     it('restituisce launched: false con motivo quando nessun agent e configurato (null)', () => {
-      const launcher = new AgentLauncher(null, mockLogger);
+      const mockConfigService = createMockConfigService({ agentCommand: null });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask();
 
       const result = launcher.launchForTask(task);
@@ -130,7 +152,8 @@ describe('AgentLauncher', () => {
     });
 
     it('restituisce launched: false con motivo quando il comando e una stringa vuota', () => {
-      const launcher = new AgentLauncher('', mockLogger);
+      const mockConfigService = createMockConfigService({ agentCommand: '' });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask();
 
       const result = launcher.launchForTask(task);
@@ -142,7 +165,8 @@ describe('AgentLauncher', () => {
     });
 
     it('restituisce launched: false con motivo quando il comando e solo spazi', () => {
-      const launcher = new AgentLauncher('   ', mockLogger);
+      const mockConfigService = createMockConfigService({ agentCommand: '   ' });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask();
 
       const result = launcher.launchForTask(task);
@@ -154,11 +178,10 @@ describe('AgentLauncher', () => {
     });
 
     it('lancia un processo agent con un comando valido e restituisce launched: true', () => {
-      // Usa 'node -e' come comando di test cross-platform
-      const launcher = new AgentLauncher(
-        'node -e "console.log(\'agent running\')"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "console.log(\'agent running\')"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask();
 
       const result = launcher.launchForTask(task);
@@ -169,15 +192,14 @@ describe('AgentLauncher', () => {
         expect(result.processId).toBeGreaterThan(0);
       }
 
-      // Cleanup
       launcher.stopAllAgents();
     });
 
     it('impedisce il lancio di un secondo agent per lo stesso task', () => {
-      const launcher = new AgentLauncher(
-        'node -e "setTimeout(() => {}, 5000)"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "setTimeout(() => {}, 5000)"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask();
 
       const firstResult = launcher.launchForTask(task);
@@ -189,76 +211,90 @@ describe('AgentLauncher', () => {
         expect(secondResult.reason).toContain('gia in esecuzione');
       }
 
-      // Cleanup
       launcher.stopAllAgents();
     });
 
     it('interpola i placeholder nel comando con i valori del task', () => {
-      // Il comando stampa i valori interpolati — verifica che il processo si avvii
-      const launcher = new AgentLauncher(
-        'node -e "console.log(\'{{title}}\')"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "console.log(\'{{title}}\')"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask({ title: 'Titolo di test' });
 
       const result = launcher.launchForTask(task);
       expect(result.launched).toBe(true);
 
-      // Cleanup
       launcher.stopAllAgents();
     });
 
     it('sanitizza i valori del task prima dell interpolazione nel comando', () => {
-      const launcher = new AgentLauncher(
-        'node -e "console.log(\'{{title}}\')"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "console.log(\'{{title}}\')"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask({ title: 'Titolo $(rm -rf /) pericoloso' });
 
       const result = launcher.launchForTask(task);
-      // Il processo deve avviarsi senza che il comando malevolo venga eseguito
       expect(result.launched).toBe(true);
 
-      // Cleanup
+      launcher.stopAllAgents();
+    });
+
+    it('legge la configurazione fresca dal ConfigService ad ogni lancio', () => {
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "console.log(\'test\')"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
+
+      const task1 = createTestTask({ id: 'task-1' });
+      const task2 = createTestTask({ id: 'task-2' });
+
+      launcher.launchForTask(task1);
+      launcher.launchForTask(task2);
+
+      // loadConfiguration deve essere chiamato una volta per ogni lancio
+      expect(mockConfigService.loadConfiguration).toHaveBeenCalledTimes(2);
+
       launcher.stopAllAgents();
     });
   });
 
   describe('isAgentRunning', () => {
     it('restituisce false per un task senza agent in esecuzione', () => {
-      const launcher = new AgentLauncher(null, mockLogger);
+      const mockConfigService = createMockConfigService();
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
 
       expect(launcher.isAgentRunning('task-inesistente')).toBe(false);
     });
 
     it('restituisce true per un task con agent in esecuzione', () => {
-      const launcher = new AgentLauncher(
-        'node -e "setTimeout(() => {}, 5000)"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "setTimeout(() => {}, 5000)"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask();
 
       launcher.launchForTask(task);
 
       expect(launcher.isAgentRunning(task.id)).toBe(true);
 
-      // Cleanup
       launcher.stopAllAgents();
     });
   });
 
   describe('stopAgent', () => {
     it('restituisce false quando il task non ha un agent in esecuzione', () => {
-      const launcher = new AgentLauncher(null, mockLogger);
+      const mockConfigService = createMockConfigService();
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
 
       expect(launcher.stopAgent('task-inesistente')).toBe(false);
     });
 
     it('restituisce true e invia SIGTERM quando il task ha un agent in esecuzione', () => {
-      const launcher = new AgentLauncher(
-        'node -e "setTimeout(() => {}, 10000)"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "setTimeout(() => {}, 10000)"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask();
 
       launcher.launchForTask(task);
@@ -271,15 +307,16 @@ describe('AgentLauncher', () => {
 
   describe('getActiveAgentCount', () => {
     it('restituisce 0 quando nessun agent e in esecuzione', () => {
-      const launcher = new AgentLauncher(null, mockLogger);
+      const mockConfigService = createMockConfigService();
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       expect(launcher.getActiveAgentCount()).toBe(0);
     });
 
     it('restituisce il numero corretto di agent attivi', () => {
-      const launcher = new AgentLauncher(
-        'node -e "setTimeout(() => {}, 5000)"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "setTimeout(() => {}, 5000)"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
 
       const task1 = createTestTask({ id: 'task-1' });
       const task2 = createTestTask({ id: 'task-2' });
@@ -289,17 +326,16 @@ describe('AgentLauncher', () => {
 
       expect(launcher.getActiveAgentCount()).toBe(2);
 
-      // Cleanup
       launcher.stopAllAgents();
     });
   });
 
   describe('stopAllAgents', () => {
     it('ferma tutti gli agent in esecuzione', () => {
-      const launcher = new AgentLauncher(
-        'node -e "setTimeout(() => {}, 5000)"',
-        mockLogger,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "setTimeout(() => {}, 5000)"',
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
 
       const task1 = createTestTask({ id: 'task-1' });
       const task2 = createTestTask({ id: 'task-2' });
@@ -309,23 +345,20 @@ describe('AgentLauncher', () => {
       expect(launcher.getActiveAgentCount()).toBe(2);
 
       launcher.stopAllAgents();
-      // Nota: stopAllAgents invia SIGTERM ma il cleanup avviene async nel 'close' handler
-      // Verifichiamo che il segnale sia stato inviato (il logger.info viene chiamato)
       expect(mockLogger.info).toHaveBeenCalled();
     });
   });
 
   describe('supporto agent multipli (US-016)', () => {
     it('usa il comando specifico quando il task ha un agent configurato nella mappa', () => {
-      const agentsMap = {
-        feature: 'node -e "console.log(\'feature agent\')"',
-        bugfix: 'node -e "console.log(\'bugfix agent\')"',
-      };
-      const launcher = new AgentLauncher(
-        'node -e "console.log(\'default agent\')"',
-        mockLogger,
-        agentsMap,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "console.log(\'default agent\')"',
+        agents: {
+          feature: 'node -e "console.log(\'feature agent\')"',
+          bugfix: 'node -e "console.log(\'bugfix agent\')"',
+        },
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask({ agent: 'feature' });
 
       const result = launcher.launchForTask(task);
@@ -339,14 +372,13 @@ describe('AgentLauncher', () => {
     });
 
     it('usa il comando di default e logga warning quando il nome agent non e nella mappa (AC-3)', () => {
-      const agentsMap = {
-        feature: 'node -e "console.log(\'feature agent\')"',
-      };
-      const launcher = new AgentLauncher(
-        'node -e "console.log(\'default agent\')"',
-        mockLogger,
-        agentsMap,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "console.log(\'default agent\')"',
+        agents: {
+          feature: 'node -e "console.log(\'feature agent\')"',
+        },
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask({ agent: 'inesistente' });
 
       const result = launcher.launchForTask(task);
@@ -360,20 +392,18 @@ describe('AgentLauncher', () => {
     });
 
     it('usa il comando di default quando il task non ha un agent specificato', () => {
-      const agentsMap = {
-        feature: 'node -e "console.log(\'feature agent\')"',
-      };
-      const launcher = new AgentLauncher(
-        'node -e "console.log(\'default agent\')"',
-        mockLogger,
-        agentsMap,
-      );
+      const mockConfigService = createMockConfigService({
+        agentCommand: 'node -e "console.log(\'default agent\')"',
+        agents: {
+          feature: 'node -e "console.log(\'feature agent\')"',
+        },
+      });
+      const launcher = new AgentLauncher(mockConfigService, mockLogger);
       const task = createTestTask({ agent: null });
 
       const result = launcher.launchForTask(task);
 
       expect(result.launched).toBe(true);
-      // Non deve loggare warning per agent non trovato
       expect(mockLogger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining('non trovato'),
       );
@@ -382,4 +412,3 @@ describe('AgentLauncher', () => {
     });
   });
 });
-

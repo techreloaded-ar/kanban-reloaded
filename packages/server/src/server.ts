@@ -46,9 +46,10 @@ export async function createServer(
     initializeDatabase(projectDirectoryPath);
   const taskService = new TaskService(databaseResult.database);
 
-  // Carica la configurazione per ottenere il comando agent
-  const configService = new ConfigService(projectDirectoryPath);
-  const projectConfiguration = configService.loadConfiguration();
+  // Inizializza il servizio di configurazione su database.
+  // Il seed importa i valori dal file config.json legacy (se esiste) nel DB.
+  const configService = new ConfigService(databaseResult.database, projectDirectoryPath);
+  configService.seedFromConfigFile();
 
   // Crea istanza Fastify
   const server = Fastify({ logger: true });
@@ -62,14 +63,12 @@ export async function createServer(
   // Broadcaster per inviare eventi a tutti i client WebSocket connessi
   const websocketBroadcaster = new WebSocketBroadcaster();
 
-  // AgentLauncher per lanciare automaticamente gli agent quando un task va in "in-progress"
+  // AgentLauncher per lanciare automaticamente gli agent quando un task va in "in-progress".
+  // Riceve il ConfigService per leggere la configurazione fresca ad ogni lancio.
   const agentLauncher = new AgentLauncher(
-    projectConfiguration.agentCommand,
+    configService,
     server.log,
-    projectConfiguration.agents,
     projectDirectoryPath,
-    projectConfiguration.workingDirectory,
-    projectConfiguration.agentEnvironmentVariables,
   );
   agentLauncher.setTaskService(taskService);
   agentLauncher.setWebSocketBroadcaster(websocketBroadcaster);

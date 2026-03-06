@@ -306,6 +306,56 @@ export function registerTaskRoutes(
     },
   );
 
+  /**
+   * POST /api/tasks/:id/launch-agent — Lancia (o rilancia) manualmente l'agent per un task.
+   * Il task deve essere in stato "in-progress" e non avere un agent gia in esecuzione.
+   */
+  server.post<{ Params: TaskRouteParams }>(
+    '/api/tasks/:id/launch-agent',
+    async (request, reply) => {
+      const { id } = request.params;
+
+      const task = taskService.getTaskById(id);
+      if (!task) {
+        return reply.status(404).send({ error: `Task non trovato con ID: ${id}` });
+      }
+
+      if (task.status !== 'in-progress') {
+        return reply.status(409).send({
+          error: `Il task deve essere in stato "in-progress" per lanciare l'agent. Stato attuale: "${task.status}"`,
+        });
+      }
+
+      if (task.agentRunning) {
+        return reply.status(409).send({
+          error: 'Un agent e gia in esecuzione per questo task.',
+        });
+      }
+
+      // Reset dei campi agent prima del rilancio
+      taskService.updateTask(id, { agentLog: null, executionTime: null });
+
+      const freshTask = taskService.getTaskById(id)!;
+      const agentLaunchResult = agentLauncher.launchForTask(freshTask);
+
+      if (agentLaunchResult.launched) {
+        taskService.updateTask(id, { agentRunning: true });
+        const finalTask = taskService.getTaskById(id)!;
+
+        websocketBroadcaster.broadcastTaskEvent({
+          type: 'task:updated',
+          payload: finalTask,
+        });
+
+        return reply.send(finalTask);
+      }
+
+      return reply.status(422).send({
+        error: agentLaunchResult.reason ?? 'Impossibile avviare l\'agent',
+      });
+    },
+  );
+
   server.delete<{ Params: TaskRouteParams; Querystring: DeleteTaskQuerystring }>(
     '/api/tasks/:id',
     async (request, reply) => {

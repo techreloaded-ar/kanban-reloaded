@@ -77,6 +77,19 @@ export async function deleteTask(taskId: string, force?: boolean): Promise<Task>
   return response.json() as Promise<Task>;
 }
 
+// --- Agent launch API ---
+
+export async function launchAgentForTask(taskId: string): Promise<Task> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/launch-agent`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    const errorBody = await response.json() as { error: string };
+    throw new Error(errorBody.error || 'Errore nel lancio dell\'agent');
+  }
+  return response.json() as Promise<Task>;
+}
+
 // --- Dependency API functions ---
 
 export interface TaskDependencies {

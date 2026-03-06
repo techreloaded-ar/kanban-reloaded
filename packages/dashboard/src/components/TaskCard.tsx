@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Loader2, Lock } from 'lucide-react';
+import { Loader2, Lock, CheckCircle2, XCircle, Terminal } from 'lucide-react';
 import { Badge } from './ui/badge.js';
 import type { Task, TaskPriority } from '../types.js';
 import type { SubtaskProgress } from '../api/taskApi.js';
@@ -77,9 +77,15 @@ export function TaskCard({ task, index, isBlocked, subtaskProgress, onDeleteTask
                 <Lock className="h-3.5 w-3.5 text-destructive" aria-label="Task bloccato da dipendenze" />
               )}
             </div>
-            {task.agentRunning && (
-              <Loader2 className="h-4 w-4 text-primary animate-spin" aria-label="Agent running" />
-            )}
+            {task.agentRunning ? (
+              <Loader2 className="h-4 w-4 text-primary animate-spin" aria-label="Agent in esecuzione" />
+            ) : task.status === 'done' && task.executionTime !== null ? (
+              <CheckCircle2 className="h-4 w-4 text-success" aria-label="Agent completato" />
+            ) : task.status === 'in-progress' && task.agentLog !== null ? (
+              <XCircle className="h-4 w-4 text-destructive" aria-label="Agent terminato con errore" />
+            ) : task.agentLog !== null ? (
+              <Terminal className="h-4 w-4 text-muted-foreground" aria-label="Log agent disponibile" />
+            ) : null}
           </div>
 
           <h3 className="font-semibold mb-2 line-clamp-2">{task.title}</h3>

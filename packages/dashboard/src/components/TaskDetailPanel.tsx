@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Trash2, Clock, Loader2, Lock, Link, Unlink, Plus, ListChecks, Settings } from "lucide-react";
+import { X, Trash2, Clock, Loader2, Lock, Link, Unlink, Plus, ListChecks, Settings, RotateCcw, CheckCircle2, XCircle, Play, Maximize2, Minimize2, Terminal } from "lucide-react";
 import { Button } from "./ui/button.js";
 import { Badge } from "./ui/badge.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.js";
@@ -15,6 +15,8 @@ interface TaskDetailPanelProps {
   allTasks: Task[];
   availableAgents?: Agent[];
   hasAgentConfigured?: boolean;
+  /** Output live dall'agent via WebSocket (undefined = nessun agent attivo con output) */
+  agentLiveOutput?: string;
   onClose: () => void;
   onDelete: (taskId: string) => void;
   onMoveTask: (taskId: string, newStatus: TaskStatus) => void;
@@ -22,6 +24,7 @@ interface TaskDetailPanelProps {
   onSubtaskProgressChanged?: (taskId: string, progress: SubtaskProgress) => void;
   onNavigateToSettings?: () => void;
   onAgentAssigned?: (taskId: string, agentId: string | null) => void;
+  onRetryAgentLaunch?: (taskId: string) => void;
 }
 
 const priorityConfig = {
@@ -36,7 +39,7 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done",
 };
 
-export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgentConfigured = true, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings, onAgentAssigned }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgentConfigured = true, agentLiveOutput, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings, onAgentAssigned, onRetryAgentLaunch }: TaskDetailPanelProps) {
   const [dependencies, setDependencies] = useState<TaskDependencies | null>(null);
   const [dependencyLoadingError, setDependencyLoadingError] = useState<string | null>(null);
   const [selectedBlockingTaskId, setSelectedBlockingTaskId] = useState<string>("");
@@ -49,7 +52,12 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
   const [subtasksLoading, setSubtasksLoading] = useState(false);
   const [subtaskError, setSubtaskError] = useState<string | null>(null);
   const [newSubtaskText, setNewSubtaskText] = useState("");
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [isLogExpanded, setIsLogExpanded] = useState(false);
   const newSubtaskInputRef = useRef<HTMLInputElement>(null);
+  const agentLogEndRef = useRef<HTMLDivElement>(null);
+  const agentSectionRef = useRef<HTMLDivElement>(null);
 
   const fetchDependencies = useCallback(async (taskId: string) => {
     try {
@@ -116,10 +124,32 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
     }
   }, [task, fetchSubtasks]);
 
+  // Auto-scroll del log quando arriva nuovo output dall'agent
+  useEffect(() => {
+    if (agentLiveOutput !== undefined && agentLogEndRef.current) {
+      agentLogEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [agentLiveOutput]);
+
+  const handleRetryAgent = useCallback(async () => {
+    if (!task) return;
+    try {
+      setRetryError(null);
+      setIsRetrying(true);
+      onRetryAgentLaunch?.(task.id);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      setRetryError(message);
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [task, onRetryAgentLaunch]);
+
   useEffect(() => {
     if (task) {
       setMoveError(null);
       setDependencyActionError(null);
+      setRetryError(null);
       setSelectedBlockingTaskId("");
       setNewSubtaskText("");
       setSubtaskError(null);
@@ -217,6 +247,35 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
           </div>
         </div>
 
+        {/* Banner stato agent — sempre visibile in cima quando c'e attivita agent */}
+        {(task.agentRunning || agentLiveOutput !== undefined || task.agentLog !== null) && (
+          <button
+            onClick={() => agentSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
+            className={`mx-6 mt-3 mb-0 flex items-center justify-between rounded-lg px-4 py-2.5 text-sm cursor-pointer transition-colors ${
+              task.agentRunning
+                ? 'bg-primary/10 border border-primary/30 text-primary hover:bg-primary/15'
+                : task.status === 'done' && task.executionTime !== null
+                  ? 'bg-success/10 border border-success/30 text-success hover:bg-success/15'
+                  : task.status === 'in-progress' && task.agentLog !== null
+                    ? 'bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/15'
+                    : 'bg-muted/50 border border-border text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {task.agentRunning ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Agent in esecuzione...</>
+              ) : task.status === 'done' && task.executionTime !== null ? (
+                <><CheckCircle2 className="h-4 w-4" /> Agent completato in {Math.round(task.executionTime / 1000)}s</>
+              ) : task.status === 'in-progress' && task.agentLog !== null ? (
+                <><XCircle className="h-4 w-4" /> Agent terminato con errore</>
+              ) : (
+                <><Terminal className="h-4 w-4" /> Log agent disponibile</>
+              )}
+            </div>
+            <span className="text-xs opacity-70">Vedi log ↓</span>
+          </button>
+        )}
+
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-6">
             <div>
@@ -231,15 +290,25 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
               </p>
             </div>
 
-            <div className="border-t border-border pt-6">
+            <div ref={agentSectionRef} className="border-t border-border pt-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold">Agent AI</h3>
-                {task.agentRunning && (
+                {task.agentRunning ? (
                   <div className="flex items-center gap-2 text-sm text-primary">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Running
+                    In esecuzione
                   </div>
-                )}
+                ) : task.status === 'done' && task.executionTime !== null ? (
+                  <div className="flex items-center gap-2 text-sm text-success">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Completato
+                  </div>
+                ) : task.status === 'in-progress' && !task.agentRunning && task.agentLog !== null ? (
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <XCircle className="h-4 w-4" />
+                    Errore
+                  </div>
+                ) : null}
               </div>
 
               {!hasAgentConfigured && !task.agentRunning ? (
@@ -285,21 +354,63 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status:</span>
-                  <span>{task.agentRunning ? "Running" : "Idle"}</span>
+                  <span>{task.agentRunning ? "In esecuzione" : task.status === 'in-progress' && task.agentLog !== null ? "Terminato con errore" : "Inattivo"}</span>
                 </div>
                 {task.executionTime !== null && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Tempo:</span>
-                    <span>{task.executionTime}s</span>
+                    <span>{Math.round(task.executionTime / 1000)}s</span>
                   </div>
                 )}
               </div>
 
-              {task.agentLog !== null && (
-                <div className="bg-background border border-border rounded-lg p-3 mt-3">
-                  <div className="text-xs text-muted-foreground mb-2">Log Output:</div>
-                  <ScrollArea className="h-32">
-                    <pre className="text-xs font-mono text-foreground whitespace-pre-wrap">{task.agentLog}</pre>
+              {/* Pulsante Rilancia Agent — visibile solo se in-progress, agent non running, e c'e un agent configurato */}
+              {task.status === 'in-progress' && !task.agentRunning && hasAgentConfigured && (
+                <div className="mb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={isRetrying}
+                    onClick={() => void handleRetryAgent()}
+                  >
+                    {isRetrying ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" />
+                    ) : task.agentLog !== null ? (
+                      <RotateCcw className="h-3.5 w-3.5 mr-2" />
+                    ) : (
+                      <Play className="h-3.5 w-3.5 mr-2" />
+                    )}
+                    {task.agentLog !== null ? "Rilancia Agent" : "Avvia Agent"}
+                  </Button>
+                  {retryError && (
+                    <p className="text-xs text-destructive mt-1">{retryError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Log output — mostra live output durante esecuzione, oppure log salvato */}
+              {(agentLiveOutput !== undefined || task.agentLog !== null) && (
+                <div className={`border rounded-lg p-3 mt-3 ${task.agentRunning ? 'bg-primary/5 border-primary/30' : 'bg-background border-border'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {task.agentRunning && <Loader2 className="h-3 w-3 animate-spin" />}
+                      <span>{task.agentRunning ? "Output live:" : "Log Output:"}</span>
+                    </div>
+                    <button
+                      onClick={() => setIsLogExpanded(previous => !previous)}
+                      className="text-muted-foreground hover:text-foreground p-0.5 rounded"
+                      aria-label={isLogExpanded ? "Riduci log" : "Espandi log"}
+                      title={isLogExpanded ? "Riduci" : "Espandi"}
+                    >
+                      {isLogExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  <ScrollArea className={isLogExpanded ? "h-[60vh]" : "h-40"}>
+                    <pre className="text-xs font-mono text-foreground whitespace-pre-wrap">
+                      {agentLiveOutput !== undefined ? agentLiveOutput : task.agentLog}
+                    </pre>
+                    <div ref={agentLogEndRef} />
                   </ScrollArea>
                 </div>
               )}

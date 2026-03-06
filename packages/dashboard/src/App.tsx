@@ -4,6 +4,8 @@ import type { Task, TaskPriority, TaskStatus } from './types.js';
 import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks, getTaskDependencies, getTaskSubtasks } from './api/taskApi.js';
 import type { SubtaskProgress } from './api/taskApi.js';
 import { useWebSocket } from './hooks/useWebSocket.js';
+import type { WebSocketAgentEvent } from './hooks/useWebSocket.js';
+import { launchAgentForTask } from './api/taskApi.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
 import { ConnectionStatusIndicator } from './components/ConnectionStatusIndicator.js';
@@ -37,6 +39,8 @@ export function App() {
   const [availableAgents, setAvailableAgents] = useState<Agent[]>([]);
   const [hasAgentConfigured, setHasAgentConfigured] = useState(true); // assume configured until loaded
   const [noAgentWarningVisible, setNoAgentWarningVisible] = useState(false);
+  /** Mappa taskId → output accumulato dall'agent in tempo reale via WebSocket */
+  const [agentLiveOutputMap, setAgentLiveOutputMap] = useState<Map<string, string>>(new Map());
   const lastDeleteTaskTitle = useRef('');
 
   // Counter to suppress WebSocket refreshes triggered by local drag-and-drop actions.
@@ -131,6 +135,45 @@ export function App() {
     void fetchTasks();
   }, [fetchTasks]);
 
+  const handleWebSocketAgentEvent = useCallback((event: WebSocketAgentEvent) => {
+    const { type, payload } = event;
+
+    if (type === 'agent:started') {
+      // Resetta output live e marca l'agent come running
+      setAgentLiveOutputMap(previousMap => {
+        const updatedMap = new Map(previousMap);
+        updatedMap.set(payload.taskId, '');
+        return updatedMap;
+      });
+      setTasks(currentTasks =>
+        currentTasks.map(task =>
+          task.id === payload.taskId ? { ...task, agentRunning: true, agentLog: null, executionTime: null } : task
+        )
+      );
+    } else if (type === 'agent:output') {
+      // Accumula output in tempo reale
+      setAgentLiveOutputMap(previousMap => {
+        const updatedMap = new Map(previousMap);
+        const currentOutput = updatedMap.get(payload.taskId) ?? '';
+        updatedMap.set(payload.taskId, currentOutput + (payload.output ?? ''));
+        return updatedMap;
+      });
+    } else if (type === 'agent:completed') {
+      // Pulisci live output — il prossimo task:updated portera il log finale
+      setAgentLiveOutputMap(previousMap => {
+        const updatedMap = new Map(previousMap);
+        updatedMap.delete(payload.taskId);
+        return updatedMap;
+      });
+      // Aggiorna lo stato dell'agent localmente per feedback immediato
+      setTasks(currentTasks =>
+        currentTasks.map(task =>
+          task.id === payload.taskId ? { ...task, agentRunning: false } : task
+        )
+      );
+    }
+  }, []);
+
   const handleWebSocketReconnect = useCallback(() => {
     // On reconnection, sync the board with current database state
     void fetchTasks();
@@ -138,6 +181,7 @@ export function App() {
 
   const { connectionLost } = useWebSocket({
     onTaskEvent: handleWebSocketTaskEvent,
+    onAgentEvent: handleWebSocketAgentEvent,
     onReconnect: handleWebSocketReconnect,
   });
 
@@ -280,6 +324,16 @@ export function App() {
     });
   }, []);
 
+  const handleRetryAgentLaunch = useCallback(async (taskId: string) => {
+    try {
+      await launchAgentForTask(taskId);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
+      console.error(`Errore nel rilancio dell'agent: ${message}`);
+      throw error;
+    }
+  }, []);
+
   const handleAgentAssigned = useCallback(async (taskId: string, agentId: string | null) => {
     // Optimistic update: immediately reflect the new agent in the UI
     setTasks(currentTasks =>
@@ -386,6 +440,7 @@ export function App() {
             allTasks={tasks}
             availableAgents={availableAgents}
             hasAgentConfigured={hasAgentConfigured}
+            agentLiveOutput={selectedTask ? agentLiveOutputMap.get(selectedTask.id) : undefined}
             onClose={handleCloseDetailPanel}
             onDelete={requestDeleteTask}
             onMoveTask={handleMoveTaskFromPanel}
@@ -393,6 +448,7 @@ export function App() {
             onSubtaskProgressChanged={handleSubtaskProgressChanged}
             onNavigateToSettings={() => { setSelectedTaskId(null); setCurrentView('settings'); }}
             onAgentAssigned={(taskId, agentId) => void handleAgentAssigned(taskId, agentId)}
+            onRetryAgentLaunch={(taskId) => void handleRetryAgentLaunch(taskId)}
           />
         )}
       </AnimatePresence>

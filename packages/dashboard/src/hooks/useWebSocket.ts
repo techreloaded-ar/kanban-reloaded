@@ -6,8 +6,25 @@ export interface WebSocketTaskEvent {
   timestamp?: string;
 }
 
+export type AgentWebSocketEventType = 'agent:started' | 'agent:output' | 'agent:completed';
+
+export interface WebSocketAgentEvent {
+  type: AgentWebSocketEventType;
+  payload: {
+    taskId: string;
+    displayId: string;
+    processId?: number;
+    output?: string;
+    exitCode?: number;
+    success?: boolean;
+    errorMessage?: string;
+  };
+  timestamp?: string;
+}
+
 interface UseWebSocketOptions {
   onTaskEvent: (event: WebSocketTaskEvent) => void;
+  onAgentEvent?: (event: WebSocketAgentEvent) => void;
   onReconnect: () => void;
 }
 
@@ -30,6 +47,14 @@ function isValidTaskEventType(type: string): type is WebSocketTaskEvent['type'] 
   );
 }
 
+function isValidAgentEventType(type: string): type is AgentWebSocketEventType {
+  return (
+    type === 'agent:started' ||
+    type === 'agent:output' ||
+    type === 'agent:completed'
+  );
+}
+
 /**
  * Custom hook for WebSocket connection to the Kanban Reloaded server.
  * Provides real-time task event updates and automatic reconnection.
@@ -45,6 +70,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
   // Use refs for callbacks to avoid re-creating the WebSocket on every render
   const onTaskEventRef = useRef(options.onTaskEvent);
   onTaskEventRef.current = options.onTaskEvent;
+
+  const onAgentEventRef = useRef(options.onAgentEvent);
+  onAgentEventRef.current = options.onAgentEvent;
 
   const onReconnectRef = useRef(options.onReconnect);
   onReconnectRef.current = options.onReconnect;
@@ -94,15 +122,26 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketResult {
         const parsedRecord = parsed as Record<string, unknown>;
         const eventType = parsedRecord.type;
 
-        if (typeof eventType === 'string' && isValidTaskEventType(eventType)) {
+        if (typeof eventType !== 'string') return;
+
+        const timestamp = typeof parsedRecord.timestamp === 'string'
+          ? parsedRecord.timestamp
+          : undefined;
+
+        if (isValidTaskEventType(eventType)) {
           const taskEvent: WebSocketTaskEvent = {
             type: eventType,
             payload: parsedRecord.payload,
-            timestamp: typeof parsedRecord.timestamp === 'string'
-              ? parsedRecord.timestamp
-              : undefined,
+            timestamp,
           };
           onTaskEventRef.current(taskEvent);
+        } else if (isValidAgentEventType(eventType)) {
+          const agentEvent: WebSocketAgentEvent = {
+            type: eventType,
+            payload: parsedRecord.payload as WebSocketAgentEvent['payload'],
+            timestamp,
+          };
+          onAgentEventRef.current?.(agentEvent);
         }
       } catch {
         // Ignore malformed messages silently

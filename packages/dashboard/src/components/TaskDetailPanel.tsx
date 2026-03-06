@@ -284,7 +284,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask,
                   Caricamento sotto-attivita...
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2 p-0.5 -m-0.5">
                   {subtaskProgress.total > 0 && (
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
@@ -506,10 +506,7 @@ export function TaskDetailPanel({ task, allTasks, onClose, onDelete, onMoveTask,
           <Button
             variant="destructive"
             className="w-full"
-            onClick={() => {
-              onDelete(task.id);
-              onClose();
-            }}
+            onClick={() => onDelete(task.id)}
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Elimina Task

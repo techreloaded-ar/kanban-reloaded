@@ -1,15 +1,14 @@
-import { Search, Plus, Moon, Sun } from "lucide-react";
+import { Search, Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button.js";
 import { Input } from "./ui/input.js";
 
 interface TopBarProps {
   projectName: string;
-  onNewTask: () => void;
   isDarkMode: boolean;
   onToggleTheme: () => void;
 }
 
-export function TopBar({ projectName, onNewTask, isDarkMode, onToggleTheme }: TopBarProps) {
+export function TopBar({ projectName, isDarkMode, onToggleTheme }: TopBarProps) {
   return (
     <div className="h-16 bg-card border-b border-border px-6 flex items-center gap-4">
       <h1 className="text-lg font-semibold">{projectName}</h1>
@@ -31,11 +30,6 @@ export function TopBar({ projectName, onNewTask, isDarkMode, onToggleTheme }: To
           aria-label="Toggle theme"
         >
           {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-        </Button>
-
-        <Button onClick={onNewTask} className="bg-primary text-primary-foreground hover:bg-primary/90">
-          <Plus className="h-4 w-4 mr-2" />
-          Nuovo Task
         </Button>
       </div>
     </div>

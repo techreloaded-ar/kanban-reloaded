@@ -118,13 +118,13 @@ export function TaskCard({ task, index, isBlocked, subtaskProgress, onDeleteTask
             </div>
           )}
 
-          {onDeleteTask && (
+          {onDeleteTask && !task.agentRunning && (
             <button
               onClick={(event) => {
                 event.stopPropagation();
                 onDeleteTask(task.id);
               }}
-              className="absolute bottom-2 right-2 hidden rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:block"
+              className="absolute top-2 right-2 hidden rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:block"
               aria-label={`Elimina task ${task.displayId}`}
               title="Elimina task"
             >

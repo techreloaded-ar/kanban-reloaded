@@ -31,7 +31,7 @@ export function KanbanColumn({ title, status, tasks, colorClass, blockedTaskIds,
         <div
           ref={provided.innerRef}
           {...provided.droppableProps}
-          className={`flex-1 min-w-[320px] bg-background rounded-lg border border-border transition-all duration-200 ${
+          className={`flex-1 min-w-[320px] flex flex-col bg-background rounded-lg border border-border transition-all duration-200 ${
             snapshot.isDraggingOver ? 'border-primary/50 bg-primary/5 scale-[1.02]' : ''
           }`}
         >
@@ -54,7 +54,7 @@ export function KanbanColumn({ title, status, tasks, colorClass, blockedTaskIds,
             )}
           </div>
 
-          <div className="p-4 space-y-3 min-h-[200px]">
+          <div className="p-4 space-y-3 min-h-[200px] flex-1 overflow-y-auto">
             {tasks.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 {EMPTY_STATE_MESSAGES[status]}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { AnimatePresence } from 'motion/react';
 import type { Task, TaskPriority, TaskStatus } from './types.js';
 import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks, getTaskDependencies, getTaskSubtasks } from './api/taskApi.js';
@@ -10,6 +10,7 @@ import { ConnectionStatusIndicator } from './components/ConnectionStatusIndicato
 import { Sidebar } from './components/Sidebar.js';
 import { TopBar } from './components/TopBar.js';
 import { TaskDetailPanel } from './components/TaskDetailPanel.js';
+import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog.js';
 
 function getInitialDarkMode(): boolean {
   const stored = localStorage.getItem('kanban-reloaded-dark-mode');
@@ -28,6 +29,12 @@ export function App() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
   const [subtaskProgressMap, setSubtaskProgressMap] = useState<Map<string, SubtaskProgress>>(new Map());
+  const [taskIdPendingDeletion, setTaskIdPendingDeletion] = useState<string | null>(null);
+  const lastDeleteTaskTitle = useRef('');
+
+  // Counter to suppress WebSocket refreshes triggered by local drag-and-drop actions.
+  // Incremented before an optimistic API call, decremented when the WebSocket event arrives.
+  const pendingLocalActionsCount = useRef(0);
 
   // Derive selectedTask from tasks list — avoids stale state and infinite re-render loops
   const selectedTask = useMemo(() => {
@@ -90,9 +97,15 @@ export function App() {
     void fetchTasks();
   }, [fetchTasks]);
 
-  const handleWebSocketTaskEvent = useCallback(() => {
-    // On any task event from WebSocket, refresh the full task list
-    // to guarantee consistency with the server state
+  const handleWebSocketTaskEvent = useCallback((event: { type: string }) => {
+    // Only suppress WebSocket refreshes for event types that correspond
+    // to local optimistic actions (move/reorder). Let other events
+    // (task:created, task:deleted) through to avoid missing real updates.
+    const isSuppressibleEventType = event.type === 'task:updated' || event.type === 'task:reordered';
+    if (isSuppressibleEventType && pendingLocalActionsCount.current > 0) {
+      pendingLocalActionsCount.current -= 1;
+      return;
+    }
     void fetchTasks();
   }, [fetchTasks]);
 
@@ -131,7 +144,16 @@ export function App() {
     }
   }, [fetchTasks]);
 
-  const handleDeleteTask = useCallback(async (taskId: string) => {
+  const requestDeleteTask = useCallback((taskId: string) => {
+    const taskTitle = tasks.find(task => task.id === taskId)?.title ?? '';
+    lastDeleteTaskTitle.current = taskTitle;
+    setTaskIdPendingDeletion(taskId);
+  }, [tasks]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (taskIdPendingDeletion === null) return;
+    const taskId = taskIdPendingDeletion;
+    setTaskIdPendingDeletion(null);
     try {
       await deleteTask(taskId);
       if (selectedTaskId === taskId) {
@@ -142,25 +164,31 @@ export function App() {
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       console.error(`Errore nell'eliminazione del task: ${message}`);
     }
-  }, [fetchTasks, selectedTaskId]);
+  }, [fetchTasks, selectedTaskId, taskIdPendingDeletion]);
+
+  const handleCancelDelete = useCallback(() => {
+    setTaskIdPendingDeletion(null);
+  }, []);
 
   const handleMoveTask = useCallback(async (taskId: string, newStatus: TaskStatus, newPosition: number) => {
-    const previousTasks = tasks;
-    setTasks(currentTasks =>
-      currentTasks.map(task =>
+    let previousTasks: Task[] = [];
+    setTasks(currentTasks => {
+      previousTasks = currentTasks;
+      return currentTasks.map(task =>
         task.id === taskId ? { ...task, status: newStatus, position: newPosition } : task
-      )
-    );
+      );
+    });
 
+    pendingLocalActionsCount.current += 1;
     try {
       await updateTask(taskId, { status: newStatus, position: newPosition });
-      await fetchTasks();
     } catch (error: unknown) {
+      pendingLocalActionsCount.current = Math.max(0, pendingLocalActionsCount.current - 1);
       setTasks(previousTasks);
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       console.error(`Errore nello spostamento del task: ${message}`);
     }
-  }, [tasks, fetchTasks]);
+  }, []);
 
   const handleMoveTaskFromPanel = useCallback(async (taskId: string, newStatus: TaskStatus) => {
     // Propagate the error so TaskDetailPanel can display blocking messages
@@ -169,8 +197,9 @@ export function App() {
   }, [fetchTasks]);
 
   const handleReorderTasks = useCallback(async (taskIds: string[], status: TaskStatus) => {
-    const previousTasks = tasks;
+    let previousTasks: Task[] = [];
     setTasks(currentTasks => {
+      previousTasks = currentTasks;
       return currentTasks.map(task => {
         const newIndex = taskIds.indexOf(task.id);
         if (newIndex !== -1) {
@@ -180,15 +209,16 @@ export function App() {
       });
     });
 
+    pendingLocalActionsCount.current += 1;
     try {
       await reorderTasks(taskIds, status);
-      await fetchTasks();
     } catch (error: unknown) {
+      pendingLocalActionsCount.current = Math.max(0, pendingLocalActionsCount.current - 1);
       setTasks(previousTasks);
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       console.error(`Errore nel riordinamento: ${message}`);
     }
-  }, [tasks, fetchTasks]);
+  }, []);
 
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTaskId(task.id);
@@ -225,7 +255,6 @@ export function App() {
       <div className="flex flex-1 flex-col min-w-0">
         <TopBar
           projectName="Kanban Reloaded"
-          onNewTask={() => setIsCreateModalOpen(true)}
           isDarkMode={isDarkMode}
           onToggleTheme={handleToggleTheme}
         />
@@ -254,7 +283,7 @@ export function App() {
               blockedTaskIds={blockedTaskIds}
               subtaskProgressMap={subtaskProgressMap}
               onCreateTask={() => setIsCreateModalOpen(true)}
-              onDeleteTask={(taskId) => void handleDeleteTask(taskId)}
+              onDeleteTask={requestDeleteTask}
               onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)}
               onMoveTask={(taskId, newStatus, newPosition) => void handleMoveTask(taskId, newStatus, newPosition)}
               onReorderTasks={(taskIds, status) => void handleReorderTasks(taskIds, status)}
@@ -283,7 +312,7 @@ export function App() {
             task={selectedTask}
             allTasks={tasks}
             onClose={handleCloseDetailPanel}
-            onDelete={(taskId) => void handleDeleteTask(taskId)}
+            onDelete={requestDeleteTask}
             onMoveTask={handleMoveTaskFromPanel}
             onDependenciesChanged={handleDependenciesChanged}
             onSubtaskProgressChanged={handleSubtaskProgressChanged}
@@ -295,6 +324,13 @@ export function App() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateTask={handleCreateTask}
+      />
+
+      <ConfirmDeleteDialog
+        isOpen={taskIdPendingDeletion !== null}
+        taskTitle={lastDeleteTaskTitle.current}
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={handleCancelDelete}
       />
     </div>
   );

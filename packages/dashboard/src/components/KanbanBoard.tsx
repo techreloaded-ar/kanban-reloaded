@@ -73,7 +73,9 @@ export function KanbanBoard({ tasks, blockedTaskIds, subtaskProgressMap, onCreat
       : COLUMNS.filter((column) => column.status === activeFilter);
 
   const tasksByStatus = (status: TaskStatus): Task[] =>
-    tasks.filter((task) => task.status === status);
+    tasks
+      .filter((task) => task.status === status)
+      .sort((a, b) => a.position - b.position);
 
   return (
     <div className="flex h-full flex-col">
@@ -143,7 +145,7 @@ export function KanbanBoard({ tasks, blockedTaskIds, subtaskProgressMap, onCreat
         </div>
       ) : (
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex flex-1 gap-4 overflow-x-auto">
+          <div className="flex flex-1 min-h-0 gap-4 overflow-x-auto">
             {visibleColumns.map((column) => (
               <KanbanColumn
                 key={column.status}

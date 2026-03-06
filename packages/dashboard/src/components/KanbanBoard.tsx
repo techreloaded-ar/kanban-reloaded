@@ -113,7 +113,7 @@ export function KanbanBoard({ tasks, blockedTaskIds, subtaskProgressMap, onCreat
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          Crea Task
+          Nuovo Task
         </button>
       </div>
 
@@ -139,7 +139,7 @@ export function KanbanBoard({ tasks, blockedTaskIds, subtaskProgressMap, onCreat
               Nessun task presente
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Clicca &quot;Crea Task&quot; per iniziare
+              Clicca &quot;Nuovo Task&quot; per iniziare
             </p>
           </div>
         </div>

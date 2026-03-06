@@ -77,15 +77,44 @@ export function TaskCard({ task, index, isBlocked, subtaskProgress, onDeleteTask
                 <Lock className="h-3.5 w-3.5 text-destructive" aria-label="Task bloccato da dipendenze" />
               )}
             </div>
-            {task.agentRunning ? (
-              <Loader2 className="h-4 w-4 text-primary animate-spin" aria-label="Agent in esecuzione" />
-            ) : task.status === 'done' && task.executionTime !== null ? (
-              <CheckCircle2 className="h-4 w-4 text-success" aria-label="Agent completato" />
-            ) : task.status === 'in-progress' && task.agentLog !== null ? (
-              <XCircle className="h-4 w-4 text-destructive" aria-label="Agent terminato con errore" />
-            ) : task.agentLog !== null ? (
-              <Terminal className="h-4 w-4 text-muted-foreground" aria-label="Log agent disponibile" />
-            ) : null}
+            <div className="flex items-center gap-1">
+              {onDeleteTask && !task.agentRunning && (
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteTask(task.id);
+                  }}
+                  className="invisible rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:visible"
+                  aria-label={`Elimina task ${task.displayId}`}
+                  title="Elimina task"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                </button>
+              )}
+              {task.agentRunning ? (
+                <Loader2 className="h-4 w-4 text-primary animate-spin" aria-label="Agent in esecuzione" />
+              ) : task.status === 'done' && task.executionTime !== null ? (
+                <CheckCircle2 className="h-4 w-4 text-success" aria-label="Agent completato" />
+              ) : task.status === 'in-progress' && task.agentLog !== null ? (
+                <XCircle className="h-4 w-4 text-destructive" aria-label="Agent terminato con errore" />
+              ) : task.agentLog !== null ? (
+                <Terminal className="h-4 w-4 text-muted-foreground" aria-label="Log agent disponibile" />
+              ) : null}
+            </div>
           </div>
 
           <h3 className="font-semibold mb-2 line-clamp-2">{task.title}</h3>
@@ -124,33 +153,6 @@ export function TaskCard({ task, index, isBlocked, subtaskProgress, onDeleteTask
             </div>
           )}
 
-          {onDeleteTask && !task.agentRunning && (
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                onDeleteTask(task.id);
-              }}
-              className="absolute top-2 right-2 hidden rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:block"
-              aria-label={`Elimina task ${task.displayId}`}
-              title="Elimina task"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <line x1="10" y1="11" x2="10" y2="17" />
-                <line x1="14" y1="11" x2="14" y2="17" />
-              </svg>
-            </button>
-          )}
         </div>
       )}
     </Draggable>

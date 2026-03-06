@@ -17,6 +17,8 @@ interface TaskDetailPanelProps {
   hasAgentConfigured?: boolean;
   /** Output live dall'agent via WebSocket (undefined = nessun agent attivo con output) */
   agentLiveOutput?: string;
+  /** Modalita di visualizzazione: drawer overlay (mobile) o pannello inline (desktop) */
+  displayMode?: 'drawer' | 'inline';
   onClose: () => void;
   onDelete: (taskId: string) => void;
   onMoveTask: (taskId: string, newStatus: TaskStatus) => void;
@@ -39,7 +41,7 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done",
 };
 
-export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgentConfigured = true, agentLiveOutput, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings, onAgentAssigned, onRetryAgentLaunch }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgentConfigured = true, agentLiveOutput, displayMode = 'drawer', onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings, onAgentAssigned, onRetryAgentLaunch }: TaskDetailPanelProps) {
   const [dependencies, setDependencies] = useState<TaskDependencies | null>(null);
   const [dependencyLoadingError, setDependencyLoadingError] = useState<string | null>(null);
   const [selectedBlockingTaskId, setSelectedBlockingTaskId] = useState<string>("");
@@ -217,14 +219,7 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
     (candidateTask) => candidateTask.id !== task.id && !alreadyLinkedTaskIds.has(candidateTask.id)
   );
 
-  return (
-    <motion.div
-      initial={{ x: "100%" }}
-      animate={{ x: 0 }}
-      exit={{ x: "100%" }}
-      transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="fixed right-0 top-0 h-full w-[400px] bg-card border-l border-border shadow-2xl z-50"
-    >
+  const panelContent = (
       <div className="flex flex-col h-full">
         <div className="p-6 border-b border-border">
           <div className="flex items-start justify-between mb-4">
@@ -276,8 +271,8 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
           </button>
         )}
 
-        <ScrollArea className="flex-1 p-6">
-          <div className="space-y-6">
+        <ScrollArea className="flex-1">
+          <div className="space-y-6 p-6">
             <div>
               <h3 className="font-semibold mb-2">Descrizione</h3>
               <p className="text-sm text-muted-foreground">{task.description || "Nessuna descrizione"}</p>
@@ -667,6 +662,25 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
           </Button>
         </div>
       </div>
+  );
+
+  if (displayMode === 'inline') {
+    return (
+      <div className="h-full w-[550px] xl:w-[650px] 2xl:w-[700px] shrink-0 bg-card border-l border-border">
+        {panelContent}
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ x: "100%" }}
+      animate={{ x: 0 }}
+      exit={{ x: "100%" }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      className="fixed right-0 top-0 h-full w-[400px] bg-card border-l border-border shadow-2xl z-50"
+    >
+      {panelContent}
     </motion.div>
   );
 }

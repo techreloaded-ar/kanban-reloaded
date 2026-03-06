@@ -5,6 +5,7 @@ import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks, getTaskD
 import type { SubtaskProgress } from './api/taskApi.js';
 import { useWebSocket } from './hooks/useWebSocket.js';
 import type { WebSocketAgentEvent } from './hooks/useWebSocket.js';
+import { useMediaQuery } from './hooks/useMediaQuery.js';
 import { launchAgentForTask } from './api/taskApi.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
@@ -41,6 +42,7 @@ export function App() {
   const [noAgentWarningVisible, setNoAgentWarningVisible] = useState(false);
   /** Mappa taskId → output accumulato dall'agent in tempo reale via WebSocket */
   const [agentLiveOutputMap, setAgentLiveOutputMap] = useState<Map<string, string>>(new Map());
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
   const lastDeleteTaskTitle = useRef('');
 
   // Counter to suppress WebSocket refreshes triggered by local drag-and-drop actions.
@@ -424,34 +426,58 @@ export function App() {
         </main>
       </div>
 
-      <AnimatePresence>
-        {selectedTask !== null && (
-          <div
-            key="task-detail-overlay"
-            className="fixed inset-0 z-40 bg-black/20"
-            onClick={handleCloseDetailPanel}
-            aria-hidden="true"
-          />
-        )}
-        {selectedTask !== null && (
-          <TaskDetailPanel
-            key="task-detail-panel"
-            task={selectedTask}
-            allTasks={tasks}
-            availableAgents={availableAgents}
-            hasAgentConfigured={hasAgentConfigured}
-            agentLiveOutput={selectedTask ? agentLiveOutputMap.get(selectedTask.id) : undefined}
-            onClose={handleCloseDetailPanel}
-            onDelete={requestDeleteTask}
-            onMoveTask={handleMoveTaskFromPanel}
-            onDependenciesChanged={handleDependenciesChanged}
-            onSubtaskProgressChanged={handleSubtaskProgressChanged}
-            onNavigateToSettings={() => { setSelectedTaskId(null); setCurrentView('settings'); }}
-            onAgentAssigned={(taskId, agentId) => void handleAgentAssigned(taskId, agentId)}
-            onRetryAgentLaunch={(taskId) => void handleRetryAgentLaunch(taskId)}
-          />
-        )}
-      </AnimatePresence>
+      {/* Desktop: pannello inline come sibling nel flex root */}
+      {isDesktop && selectedTask !== null && (
+        <TaskDetailPanel
+          task={selectedTask}
+          allTasks={tasks}
+          availableAgents={availableAgents}
+          hasAgentConfigured={hasAgentConfigured}
+          agentLiveOutput={selectedTask ? agentLiveOutputMap.get(selectedTask.id) : undefined}
+          displayMode="inline"
+          onClose={handleCloseDetailPanel}
+          onDelete={requestDeleteTask}
+          onMoveTask={handleMoveTaskFromPanel}
+          onDependenciesChanged={handleDependenciesChanged}
+          onSubtaskProgressChanged={handleSubtaskProgressChanged}
+          onNavigateToSettings={() => { setSelectedTaskId(null); setCurrentView('settings'); }}
+          onAgentAssigned={(taskId, agentId) => void handleAgentAssigned(taskId, agentId)}
+          onRetryAgentLaunch={(taskId) => void handleRetryAgentLaunch(taskId)}
+        />
+      )}
+
+      {/* Mobile/Tablet: drawer overlay con animazione */}
+      {!isDesktop && (
+        <AnimatePresence>
+          {selectedTask !== null && (
+            <div
+              key="task-detail-overlay"
+              className="fixed inset-0 z-40 bg-black/20"
+              onClick={handleCloseDetailPanel}
+              aria-hidden="true"
+            />
+          )}
+          {selectedTask !== null && (
+            <TaskDetailPanel
+              key="task-detail-panel"
+              task={selectedTask}
+              allTasks={tasks}
+              availableAgents={availableAgents}
+              hasAgentConfigured={hasAgentConfigured}
+              agentLiveOutput={selectedTask ? agentLiveOutputMap.get(selectedTask.id) : undefined}
+              displayMode="drawer"
+              onClose={handleCloseDetailPanel}
+              onDelete={requestDeleteTask}
+              onMoveTask={handleMoveTaskFromPanel}
+              onDependenciesChanged={handleDependenciesChanged}
+              onSubtaskProgressChanged={handleSubtaskProgressChanged}
+              onNavigateToSettings={() => { setSelectedTaskId(null); setCurrentView('settings'); }}
+              onAgentAssigned={(taskId, agentId) => void handleAgentAssigned(taskId, agentId)}
+              onRetryAgentLaunch={(taskId) => void handleRetryAgentLaunch(taskId)}
+            />
+          )}
+        </AnimatePresence>
+      )}
 
       <CreateTaskModal
         isOpen={isCreateModalOpen}

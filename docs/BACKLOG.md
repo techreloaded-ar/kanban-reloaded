@@ -307,9 +307,11 @@ I want poter passare dal tema chiaro al tema scuro nella dashboard con un singol
 so that posso usare la board in condizioni di scarsa luminosita senza affaticare la vista.
 
 **Acceptance Criteria**
-- [ ] La top bar include un bottone toggle (icona sole/luna) che alterna tra tema chiaro e tema scuro
-- [ ] Il tema scuro utilizza le variabili CSS gia definite nella classe `.dark` del file `theme.css` (background `#1A1A2E`, card `#16213E`, ecc.)
-- [ ] La preferenza del tema viene salvata nel localStorage del browser e ripristinata automaticamente al caricamento successivo della dashboard
+- [x] La top bar include un bottone toggle (icona sole/luna) che alterna tra tema chiaro e tema scuro
+- [x] Il tema scuro utilizza le variabili CSS gia definite nella classe `.dark` del file `theme.css` (background `#1A1A2E`, card `#16213E`, ecc.)
+- [x] La preferenza del tema viene salvata nel localStorage del browser e ripristinata automaticamente al caricamento successivo della dashboard
+
+**Status: DONE**
 
 ---
 

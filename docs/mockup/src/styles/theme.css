@@ -58,6 +58,8 @@
   --destructive-foreground: #ffffff;
   --border: rgba(255, 255, 255, 0.08);
   --input: rgba(255, 255, 255, 0.08);
+  --input-background: #1E2747;
+  --switch-background: #2A2A4E;
   --ring: #E67E22;
   --success: #2ECC71;
   --info: #3498DB;

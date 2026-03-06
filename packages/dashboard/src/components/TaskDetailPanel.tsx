@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Trash2, Clock, Loader2, Lock, Link, Unlink, Plus, ListChecks, Settings, RotateCcw, CheckCircle2, XCircle, Play, Maximize2, Minimize2, Terminal } from "lucide-react";
+import { X, Trash2, Clock, Loader2, Lock, Link, Unlink, Plus, ListChecks, Settings, RotateCcw, CheckCircle2, XCircle, Play, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "./ui/button.js";
 import { Badge } from "./ui/badge.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select.js";
@@ -58,8 +58,6 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
   const [isRetrying, setIsRetrying] = useState(false);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
   const newSubtaskInputRef = useRef<HTMLInputElement>(null);
-  const agentLogEndRef = useRef<HTMLDivElement>(null);
-  const agentSectionRef = useRef<HTMLDivElement>(null);
 
   const fetchDependencies = useCallback(async (taskId: string) => {
     try {
@@ -125,13 +123,6 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
       setSubtaskError(message);
     }
   }, [task, fetchSubtasks]);
-
-  // Auto-scroll del log quando arriva nuovo output dall'agent
-  useEffect(() => {
-    if (agentLiveOutput !== undefined && agentLogEndRef.current) {
-      agentLogEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [agentLiveOutput]);
 
   const handleRetryAgent = useCallback(async () => {
     if (!task) return;
@@ -242,35 +233,6 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
           </div>
         </div>
 
-        {/* Banner stato agent — sempre visibile in cima quando c'e attivita agent */}
-        {(task.agentRunning || agentLiveOutput !== undefined || task.agentLog !== null) && (
-          <button
-            onClick={() => agentSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
-            className={`mx-6 mt-3 mb-0 flex items-center justify-between rounded-lg px-4 py-2.5 text-sm cursor-pointer transition-colors ${
-              task.agentRunning
-                ? 'bg-primary/10 border border-primary/30 text-primary hover:bg-primary/15'
-                : task.status === 'done' && task.executionTime !== null
-                  ? 'bg-success/10 border border-success/30 text-success hover:bg-success/15'
-                  : task.status === 'in-progress' && task.agentLog !== null
-                    ? 'bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive/15'
-                    : 'bg-muted/50 border border-border text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {task.agentRunning ? (
-                <><Loader2 className="h-4 w-4 animate-spin" /> Agent in esecuzione...</>
-              ) : task.status === 'done' && task.executionTime !== null ? (
-                <><CheckCircle2 className="h-4 w-4" /> Agent completato in {Math.round(task.executionTime / 1000)}s</>
-              ) : task.status === 'in-progress' && task.agentLog !== null ? (
-                <><XCircle className="h-4 w-4" /> Agent terminato con errore</>
-              ) : (
-                <><Terminal className="h-4 w-4" /> Log agent disponibile</>
-              )}
-            </div>
-            <span className="text-xs opacity-70">Vedi log ↓</span>
-          </button>
-        )}
-
         <ScrollArea className="flex-1">
           <div className="space-y-6 p-6">
             <div>
@@ -285,7 +247,7 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
               </p>
             </div>
 
-            <div ref={agentSectionRef} className="border-t border-border pt-6">
+            <div className="border-t border-border pt-6">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold">Agent AI</h3>
                 {task.agentRunning ? (
@@ -405,7 +367,6 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
                     <pre className="text-xs font-mono text-foreground whitespace-pre-wrap">
                       {agentLiveOutput !== undefined ? agentLiveOutput : task.agentLog}
                     </pre>
-                    <div ref={agentLogEndRef} />
                   </ScrollArea>
                 </div>
               )}

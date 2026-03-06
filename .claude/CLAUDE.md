@@ -12,6 +12,12 @@
 
 Quando lavori ad una user story del `docs/BACKLOG.md`, ricordati di segnarla come IN PROGRESS. Quando hai finito, metti check sui criteri di accettazione rispettati e mettila in status DONE
 
+## Team di agenti
+
+Quando crei dei team di agenti, includi sempre:
+- Un tester che scriva i test automatici e verifichi i criteri di accettazione
+- Un code reviewer che revisioni il codice e si assicuri che sia di elevata qualità, forzando gli altri agenti a risolvere i problemi principali
+
 ## Regola Mockup — Fonte di verita per la UI
 
 La directory `docs/mockup/src/app/components/` contiene il mockup funzionante della dashboard. Ogni componente UI di produzione (`packages/dashboard/`) **DEVE** replicare il mockup corrispondente.

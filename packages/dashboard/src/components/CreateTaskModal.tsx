@@ -78,7 +78,7 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgents
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Nuovo Task</DialogTitle>
+          <DialogTitle>Crea Task</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -186,7 +186,7 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgents
               Annulla
             </Button>
             <Button type="submit" className="bg-primary hover:bg-primary/90" disabled={submitting}>
-              {submitting ? "Creazione..." : "Crea Task"}
+              {submitting ? "Creazione..." : "Crea"}
             </Button>
           </DialogFooter>
         </form>

@@ -19,9 +19,10 @@
 | EP-006 | Organizzazione Avanzata Task | 4 | 16 | Growth |
 | EP-007 | Import/Export e Monitoraggio | 4 | 13 | Growth |
 | EP-008 | Estensibilita e Automazione Avanzata | 3 | 15 | Vision |
+| EP-009 | Esperienza Agent Completa | 8 | 28 | Growth |
 
-**Total stories:** 35
-**Total story points:** 118
+**Total stories:** 43
+**Total story points:** 146
 **MVP stories:** 24 (74pt)
 
 ---
@@ -33,6 +34,7 @@
 - Dashboard Kanban (EP-003) e Integrazione Agent AI (EP-004) sono il cuore differenziante del prodotto e possono procedere in parallelo una volta che EP-001 e EP-002 sono completati; la board senza agent trigger e solo un Kanban generico, l'agent trigger senza board e solo uno script — insieme creano il valore unico di Kanban Reloaded.
 - La CLI (EP-005) e importante per l'adozione da parte degli sviluppatori power-user e per l'integrazione agent, ma puo essere sviluppata in parallelo alla dashboard poiche condivide solo il layer core.
 - Le feature Growth (EP-006, EP-007) e Vision (EP-008) sono state deprioritizzate intenzionalmente per focalizzare l'MVP sul flusso core drag-and-drop → agent launch.
+- EP-009 (Esperienza Agent Completa) colma il gap tra l'infrastruttura agent backend (EP-004, DONE) e l'esperienza utente: streaming log in tempo reale, stop agent, conferma lancio, configurazione dalla UI e onboarding. Le story P0 (US-036/037/038) sono prioritarie perche rendono l'agent sicuro e osservabile; le P1 (US-039/040/041) eliminano la necessita di editare JSON manualmente; le P2 (US-042/043) sono per power user.
 
 ---
 
@@ -707,6 +709,159 @@ so that posso connettere la board ai miei strumenti di comunicazione e automazio
 
 ---
 
+### EP-009: Esperienza Agent Completa
+
+> Completare l'esperienza utente dell'integrazione agent AI: visualizzazione in tempo reale, controllo del ciclo di vita, configurazione dalla dashboard e onboarding per nuovi utenti. Il backend (EP-004) e completo; EP-009 colma il gap tra infrastruttura e usabilita.
+> **Scope:** Growth | **Stories:** 8 | **Story Points:** 28
+
+---
+
+#### US-036: Streaming in tempo reale del log dell'agent nella dashboard
+
+**Epic:** EP-009 | **Priority:** HIGH | **Story Points:** 5
+**Depends on:** None
+
+**Story**
+As Marco (sviluppatore indie),
+I want vedere l'output dell'agent AI in tempo reale nel pannello dettaglio del task mentre l'agent sta lavorando,
+so that posso monitorare il progresso dell'implementazione senza dover aspettare che l'agent termini.
+
+**Acceptance Criteria**
+- [ ] Il hook `useWebSocket` gestisce gli eventi `agent:started`, `agent:output`, `agent:completed` oltre agli eventi task esistenti
+- [ ] Il `TaskDetailPanel` mostra il log dell'agent in una vista terminale con auto-scroll che si aggiorna in tempo reale ad ogni chunk ricevuto via WebSocket
+- [ ] Quando l'agent termina (`agent:completed`), il pannello mostra l'esito (successo/errore) e il tempo di esecuzione, e aggiorna automaticamente lo stato del task nella board
+- [ ] Se il pannello dettaglio viene chiuso e riaperto mentre l'agent e in esecuzione, il log accumulato finora viene caricato dal database e lo streaming riprende dal punto corrente
+- [ ] Il nome dell'agent mostrato nella sezione "Agent AI" riflette il valore del campo `task.agent` (o "Default" se non specificato), non un valore hardcoded
+
+---
+
+#### US-037: Arresto dell'agent dalla dashboard
+
+**Epic:** EP-009 | **Priority:** HIGH | **Story Points:** 3
+**Depends on:** US-036
+
+**Story**
+As Marco (sviluppatore indie),
+I want poter fermare un agent in esecuzione dal pannello dettaglio del task cliccando un pulsante "Ferma Agent",
+so that posso interrompere un agent che sta lavorando in modo errato senza dover riavviare il server.
+
+**Acceptance Criteria**
+- [ ] Un endpoint `POST /api/tasks/:id/agent/stop` invoca `agentLauncher.stopAgent(taskId)` e restituisce lo stato aggiornato del task
+- [ ] Nel `TaskDetailPanel`, quando `task.agentRunning` e true, viene mostrato un pulsante "Ferma Agent" con icona di stop
+- [ ] Al click sul pulsante, viene mostrata una conferma ("Vuoi fermare l'agent?") e dopo la conferma viene chiamato l'endpoint di stop
+- [ ] Dopo l'arresto, il task rimane in stato "in-progress" (non torna a "backlog"), e il log mostra il motivo dell'interruzione
+
+---
+
+#### US-038: Conferma prima del lancio agent e opzione senza agent
+
+**Epic:** EP-009 | **Priority:** HIGH | **Story Points:** 3
+**Depends on:** None
+
+**Story**
+As Marco (sviluppatore indie),
+I want che il sistema mi chieda conferma prima di lanciare un agent quando sposto un task in "In Progress",
+so that posso evitare lanci accidentali e scegliere se procedere con o senza agent.
+
+**Acceptance Criteria**
+- [ ] Quando un task viene spostato in "In Progress" (via drag-and-drop o pannello dettaglio) e un agent e configurato, viene mostrato un dialog di conferma con tre opzioni: "Avvia Agent", "Senza Agent", "Annulla"
+- [ ] "Avvia Agent" sposta il task e lancia l'agent (comportamento attuale); "Senza Agent" sposta il task senza lanciare l'agent; "Annulla" riporta il task allo stato precedente
+- [ ] Se nessun agent e configurato (`agentCommand` null e `agents` vuoto), il task viene spostato direttamente senza mostrare il dialog
+- [ ] Il dialog mostra il nome dell'agent che verra lanciato (se il task ha un agent assegnato) o "Agent di default"
+
+---
+
+#### US-039: Pagina Impostazioni con configurazione agent
+
+**Epic:** EP-009 | **Priority:** MEDIUM | **Story Points:** 5
+**Depends on:** None
+
+**Story**
+As Marco (sviluppatore indie),
+I want configurare il comando dell'agent AI e gli agent multipli dalla pagina Impostazioni della dashboard,
+so that posso gestire la configurazione senza modificare manualmente il file JSON.
+
+**Acceptance Criteria**
+- [x] La pagina Impostazioni (gia presente come placeholder nel Sidebar) mostra i campi di configurazione: comando agent di default, porta del server, e la mappa degli agent
+- [x] L'utente puo modificare il comando agent di default con un campo testo che mostra i placeholder disponibili (`{{title}}`, `{{description}}`, `{{acceptanceCriteria}}`)
+- [x] L'utente puo aggiungere, modificare ed eliminare agent nella mappa agents (nome + template comando) con un'interfaccia lista editabile
+- [x] Le modifiche vengono salvate tramite API `PUT /api/config` che aggiorna il file `config.json` e il server riceve le nuove configurazioni senza riavvio
+
+**Status: DONE**
+
+---
+
+#### US-040: Selezione agent per task dalla dashboard
+
+**Epic:** EP-009 | **Priority:** MEDIUM | **Story Points:** 3
+**Depends on:** US-039
+
+**Story**
+As Sara (tech lead),
+I want selezionare quale agent usare per ogni task dalla dashboard,
+so that posso assegnare agent diversi a task diversi senza modificare il file di configurazione.
+
+**Acceptance Criteria**
+- [ ] Nel `CreateTaskModal`, un campo dropdown opzionale "Agent" mostra la lista degli agent configurati (dalla mappa `agents` nel config) piu l'opzione "Default"
+- [ ] Nel `TaskDetailPanel`, la sezione "Agent AI" mostra l'agent assegnato (o "Default") e permette di cambiarlo tramite un dropdown, solo se l'agent non e in esecuzione
+- [ ] Quando il task viene spostato in "In Progress", il sistema usa l'agent assegnato al task per risolvere il comando (logica gia presente in `resolveAgentCommand`)
+- [ ] La lista degli agent disponibili viene recuperata tramite `GET /api/config` e aggiornata quando la configurazione cambia
+
+---
+
+#### US-041: Onboarding e stato vuoto per configurazione agent
+
+**Epic:** EP-009 | **Priority:** MEDIUM | **Story Points:** 3
+**Depends on:** US-039
+
+**Story**
+As Marco (sviluppatore indie),
+I want ricevere una guida chiara quando nessun agent e configurato,
+so that posso capire come configurare l'agent AI la prima volta senza cercare nella documentazione.
+
+**Acceptance Criteria**
+- [ ] Quando nessun `agentCommand` e configurato e la mappa `agents` e vuota, la sezione "Agent AI" nel `TaskDetailPanel` mostra un messaggio informativo con link alla pagina Impostazioni
+- [ ] La pagina Impostazioni mostra template preconfigurati (Claude Code, Aider, script custom) con un pulsante "Usa questo template" che precompila il campo comando
+- [ ] Al primo spostamento di un task in "In Progress" senza agent configurato, viene mostrato un toast/avviso non bloccante che suggerisce di configurare un agent dalla pagina Impostazioni
+
+---
+
+#### US-042: Directory di lavoro configurabile per agent
+
+**Epic:** EP-009 | **Priority:** LOW | **Story Points:** 3
+**Depends on:** US-039
+
+**Story**
+As Sara (tech lead),
+I want configurare la directory di lavoro (cwd) in cui i processi agent vengono eseguiti,
+so that gli agent operino nella directory corretta del progetto e possano accedere ai file sorgente.
+
+**Acceptance Criteria**
+- [ ] Il file di configurazione supporta un campo opzionale `workingDirectory` (stringa, percorso assoluto o relativo alla root del progetto)
+- [ ] Se `workingDirectory` e specificato, il processo agent viene avviato con `cwd` impostato a quel percorso; se non specificato, il `cwd` e la directory in cui si trova `.kanban-reloaded/`
+- [ ] Se il percorso specificato non esiste o non e una directory, il sistema logga un warning e usa il percorso di default
+- [ ] Ogni agent nella mappa `agents` puo avere un proprio `workingDirectory` che sovrascrive quello globale
+
+---
+
+#### US-043: Variabili d'ambiente per agent
+
+**Epic:** EP-009 | **Priority:** LOW | **Story Points:** 3
+**Depends on:** US-039, US-042
+
+**Story**
+As Marco (sviluppatore indie),
+I want configurare variabili d'ambiente aggiuntive per i processi agent,
+so that posso passare API key, token e percorsi personalizzati senza esporli nel comando visibile.
+
+**Acceptance Criteria**
+- [ ] Il file di configurazione supporta un campo opzionale `agentEnvironmentVariables` (oggetto chiave-valore) che viene passato ai processi agent come variabili d'ambiente aggiuntive
+- [ ] Le variabili d'ambiente configurate si sommano a quelle del processo padre (non le sovrascrivono, a meno che non abbiano lo stesso nome)
+- [ ] La pagina Impostazioni permette di aggiungere, modificare e rimuovere variabili d'ambiente; i valori sono mascherati (mostrati come `****`) dopo il salvataggio per sicurezza
+- [ ] Le variabili d'ambiente non vengono mai incluse nei log dell'agent o nelle risposte API
+
+---
+
 ## Backlog Assumptions & Open Questions
 
 > _Questa sezione elenca le assunzioni fatte durante la generazione del backlog e le domande aperte per il team._
@@ -721,4 +876,5 @@ so that posso connettere la board ai miei strumenti di comunicazione e automazio
 ---
 
 _Backlog generated via AIRchetipo — 2026-03-05_
-_31 stories across 8 epics — 104 story points total_
+_43 stories across 9 epics — 146 story points total_
+_EP-009 added — 2026-03-06_

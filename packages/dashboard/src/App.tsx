@@ -11,6 +11,7 @@ import { Sidebar } from './components/Sidebar.js';
 import { TopBar } from './components/TopBar.js';
 import { TaskDetailPanel } from './components/TaskDetailPanel.js';
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog.js';
+import { SettingsPage } from './components/SettingsPage.js';
 
 function getInitialDarkMode(): boolean {
   const stored = localStorage.getItem('kanban-reloaded-dark-mode');
@@ -290,9 +291,7 @@ export function App() {
               onTaskClick={handleTaskClick}
             />
           ) : (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-muted-foreground">Impostazioni (in arrivo)</p>
-            </div>
+            <SettingsPage />
           )}
         </main>
       </div>

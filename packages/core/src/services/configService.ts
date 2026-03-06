@@ -240,4 +240,35 @@ export class ConfigService {
 
     return validatedConfiguration;
   }
+
+  /**
+   * Salva una configurazione parziale nel file config.json.
+   * Carica la configurazione corrente, applica i campi aggiornati,
+   * e scrive il risultato su disco preservando il campo informativo agentCommandExamples.
+   *
+   * @param updatedFields - I campi della configurazione da aggiornare
+   * @returns La configurazione completa dopo il merge
+   */
+  saveConfiguration(updatedFields: Partial<ProjectConfiguration>): ProjectConfiguration {
+    // 1. Carica la configurazione corrente (crea il file se non esiste)
+    const currentConfiguration = this.loadConfiguration();
+
+    // 2. Merge dei campi aggiornati nella configurazione corrente
+    const mergedConfiguration: ProjectConfiguration = {
+      ...currentConfiguration,
+      ...updatedFields,
+    };
+
+    // 3. Scrivi la configurazione aggiornata su disco, preservando gli esempi informativi
+    const configFilePath = this.getConfigFilePath();
+    const configurationWithExamples = {
+      ...mergedConfiguration,
+      agentCommandExamples: AGENT_COMMAND_EXAMPLES,
+    };
+    const configurationJson = JSON.stringify(configurationWithExamples, null, 2) + '\n';
+    fs.writeFileSync(configFilePath, configurationJson, 'utf-8');
+
+    // 4. Restituisci la configurazione completa (senza il campo informativo)
+    return mergedConfiguration;
+  }
 }

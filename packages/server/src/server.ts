@@ -12,6 +12,7 @@ import {
 } from '@kanban-reloaded/core';
 import type { DatabaseInitializationResult } from '@kanban-reloaded/core';
 import { registerTaskRoutes } from './routes/taskRoutes.js';
+import { registerConfigRoutes } from './routes/configRoutes.js';
 import { WebSocketBroadcaster } from './websocket/websocketBroadcaster.js';
 import { registerWebSocketRoute } from './websocket/websocketRoute.js';
 import { AgentLauncher } from './agent/agentLauncher.js';
@@ -95,6 +96,7 @@ export async function createServer(
 
   // Registra route API
   registerTaskRoutes(server, taskService, websocketBroadcaster, agentLauncher);
+  registerConfigRoutes(server, configService);
 
   // Alla chiusura del server, ferma tutti i processi agent attivi
   server.addHook('onClose', async () => {

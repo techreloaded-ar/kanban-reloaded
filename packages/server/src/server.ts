@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';
 import fastifyCors from '@fastify/cors';
@@ -74,12 +75,14 @@ export async function createServer(
     staticFilesPath ??
     path.resolve(import.meta.dirname, '..', '..', 'dashboard', 'dist');
 
-  // Registra static serving solo se la directory esiste
+  // Registra @fastify/static solo per il decorator reply.sendFile(),
+  // senza registrare route automatiche (serve: false).
+  // Questo evita conflitti nel radix tree di find-my-way tra le route
+  // statiche e le route API parametriche nested (es. /api/tasks/:id/subtasks).
   try {
     await server.register(fastifyStatic, {
       root: resolvedStaticPath,
-      prefix: '/',
-      wildcard: false,
+      serve: false,
     });
   } catch {
     server.log.warn(
@@ -98,11 +101,29 @@ export async function createServer(
     agentLauncher.stopAllAgents();
   });
 
-  // Catch-all per SPA routing: ogni GET non-API serve index.html
+  // Catch-all: serve file statici della dashboard e fallback SPA.
+  // Con serve:false su @fastify/static, tutte le richieste non matchate
+  // dalle route API finiscono qui.
+  //
+  // NOTA: reply.sendFile() per un file inesistente invia direttamente una
+  // risposta 404 senza lanciare eccezione, quindi usiamo fs.existsSync()
+  // per decidere se servire il file esatto o fare fallback a index.html.
   server.setNotFoundHandler(async (request, reply) => {
+    // Solo le richieste GET non-API vengono servite come file statici
     if (request.method === 'GET' && !request.url.startsWith('/api/')) {
+      const urlPath = request.url.split('?')[0];
+      const filePath = urlPath === '/' ? 'index.html' : urlPath.slice(1);
+      const absoluteFilePath = path.join(resolvedStaticPath, filePath);
+
+      // Se il file esiste nel filesystem, servilo direttamente
+      if (fs.existsSync(absoluteFilePath) && fs.statSync(absoluteFilePath).isFile()) {
+        return reply.sendFile(filePath, resolvedStaticPath);
+      }
+
+      // SPA fallback: qualsiasi route sconosciuta serve index.html
+      // per permettere al router client-side di gestire la navigazione
       try {
-        return reply.sendFile('index.html', resolvedStaticPath);
+        return await reply.sendFile('index.html', resolvedStaticPath);
       } catch {
         return reply.status(404).send({ error: 'Dashboard non trovata' });
       }

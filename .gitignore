@@ -22,3 +22,9 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+#Playwright
+.playwright-mcp/
+
+#Ralph Loop
+.claude/ralph-loop.local.md

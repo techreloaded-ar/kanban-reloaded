@@ -75,3 +75,4 @@ interface Task {
 - **Package naming:** `@kanban-reloaded/<package-name>`
 - **Server binding:** solo `127.0.0.1` (mai `0.0.0.0`)
 - **Sanitizzazione:** ogni input utente e comando agent deve essere sanitizzato
+- **`@fastify/static`:** registrare sempre con `serve: false` per evitare conflitti nel radix tree di `find-my-way` con route parametriche nested (es. `/api/tasks/:id/subtasks`). Gestire i file statici e il fallback SPA nel `setNotFoundHandler`.

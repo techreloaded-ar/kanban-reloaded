@@ -22,6 +22,10 @@ interface EnvironmentVariableEntry {
   isMasked: boolean; // true if loaded from server (value is "****")
 }
 
+interface SettingsPageProps {
+  onAgentsChanged?: () => void;
+}
+
 const PLACEHOLDER_HELP_TEXT = "Placeholder disponibili: {{title}}, {{description}}, {{acceptanceCriteria}}";
 
 const PRECONFIGURED_TEMPLATES = [
@@ -39,7 +43,7 @@ const PRECONFIGURED_TEMPLATES = [
   },
 ];
 
-export function SettingsPage() {
+export function SettingsPage({ onAgentsChanged }: SettingsPageProps = {}) {
   const [configuration, setConfiguration] = useState<ProjectConfiguration | null>(null);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -183,6 +187,7 @@ export function SettingsPage() {
       );
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
+      onAgentsChanged?.();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Errore sconosciuto";
       setSaveError(message);

@@ -280,6 +280,23 @@ export function App() {
     });
   }, []);
 
+  const handleAgentAssigned = useCallback(async (taskId: string, agentId: string | null) => {
+    // Optimistic update: immediately reflect the new agent in the UI
+    setTasks(currentTasks =>
+      currentTasks.map(task =>
+        task.id === taskId ? { ...task, agentId, agentName: agentId ? availableAgents.find(a => a.id === agentId)?.name ?? null : null } : task
+      )
+    );
+    pendingLocalActionsCount.current += 1;
+    try {
+      await updateTask(taskId, { agentId });
+    } catch {
+      pendingLocalActionsCount.current = Math.max(0, pendingLocalActionsCount.current - 1);
+      // Rollback: re-fetch from server
+      void fetchTasks();
+    }
+  }, [availableAgents, fetchTasks]);
+
   const handleToggleTheme = useCallback(() => {
     setIsDarkMode(previous => !previous);
   }, []);
@@ -348,7 +365,7 @@ export function App() {
               onTaskClick={handleTaskClick}
             />
           ) : (
-            <SettingsPage />
+            <SettingsPage onAgentsChanged={refreshAvailableAgents} />
           )}
         </main>
       </div>
@@ -375,6 +392,7 @@ export function App() {
             onDependenciesChanged={handleDependenciesChanged}
             onSubtaskProgressChanged={handleSubtaskProgressChanged}
             onNavigateToSettings={() => { setSelectedTaskId(null); setCurrentView('settings'); }}
+            onAgentAssigned={(taskId, agentId) => void handleAgentAssigned(taskId, agentId)}
           />
         )}
       </AnimatePresence>

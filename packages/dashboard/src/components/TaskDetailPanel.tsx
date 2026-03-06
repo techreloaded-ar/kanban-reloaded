@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { ScrollArea } from "./ui/scroll-area.js";
 import type { Task, TaskStatus } from "../types.js";
 import { motion } from "motion/react";
-import { getTaskDependencies, addTaskDependency, removeTaskDependency, getTaskSubtasks, createSubtask, toggleSubtask, deleteSubtask, updateTask } from "../api/taskApi.js";
+import { getTaskDependencies, addTaskDependency, removeTaskDependency, getTaskSubtasks, createSubtask, toggleSubtask, deleteSubtask } from "../api/taskApi.js";
 import type { TaskDependencies, Subtask, SubtaskProgress } from "../api/taskApi.js";
 import type { Agent } from "../api/agentApi.js";
 
@@ -21,6 +21,7 @@ interface TaskDetailPanelProps {
   onDependenciesChanged?: () => void;
   onSubtaskProgressChanged?: (taskId: string, progress: SubtaskProgress) => void;
   onNavigateToSettings?: () => void;
+  onAgentAssigned?: (taskId: string, agentId: string | null) => void;
 }
 
 const priorityConfig = {
@@ -35,7 +36,7 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done",
 };
 
-export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgentConfigured = true, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgentConfigured = true, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings, onAgentAssigned }: TaskDetailPanelProps) {
   const [dependencies, setDependencies] = useState<TaskDependencies | null>(null);
   const [dependencyLoadingError, setDependencyLoadingError] = useState<string | null>(null);
   const [selectedBlockingTaskId, setSelectedBlockingTaskId] = useState<string>("");
@@ -263,7 +264,7 @@ export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgent
                       value={task.agentId ?? "__default__"}
                       onValueChange={(value) => {
                         const newAgentId = value === "__default__" ? null : value;
-                        void updateTask(task.id, { agentId: newAgentId });
+                        onAgentAssigned?.(task.id, newAgentId);
                       }}
                     >
                       <SelectTrigger className="w-36 h-7 text-xs">

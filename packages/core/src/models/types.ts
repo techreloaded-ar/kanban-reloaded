@@ -2,6 +2,27 @@ export type TaskStatus = 'backlog' | 'in-progress' | 'done';
 
 export type TaskPriority = 'high' | 'medium' | 'low';
 
+export interface Agent {
+  id: string;
+  name: string;
+  commandTemplate: string;
+  workingDirectory: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface CreateAgentInput {
+  name: string;
+  commandTemplate: string;
+  workingDirectory?: string | null;
+}
+
+export interface UpdateAgentInput {
+  name?: string;
+  commandTemplate?: string;
+  workingDirectory?: string | null;
+}
+
 export interface Task {
   id: string;
   displayId: string;
@@ -12,7 +33,8 @@ export interface Task {
   status: TaskStatus;
   agentRunning: boolean;
   agentLog: string | null;
-  agent: string | null;
+  agentId: string | null;
+  agentName: string | null;
   createdAt: string;
   updatedAt: string | null;
   executionTime: number | null;
@@ -37,7 +59,7 @@ export interface CreateTaskInput {
   acceptanceCriteria?: string;
   priority?: TaskPriority;
   status?: TaskStatus;
-  agent?: string | null;
+  agentId?: string | null;
   position?: number;
 }
 
@@ -50,7 +72,7 @@ export interface UpdateTaskInput {
   agentRunning?: boolean;
   agentLog?: string | null;
   executionTime?: number | null;
-  agent?: string | null;
+  agentId?: string | null;
   position?: number;
 }
 
@@ -78,22 +100,6 @@ export interface SubtaskProgress {
   completed: number;
 }
 
-/**
- * Configurazione dettagliata di un singolo agent.
- * Il campo `command` contiene il template del comando.
- * Il campo `workingDirectory` e opzionale e sovrascrive il valore globale.
- */
-export interface AgentDetailedConfiguration {
-  command: string;
-  workingDirectory?: string;
-}
-
-/**
- * Mappa nome agent -> template comando (stringa) o configurazione dettagliata.
- * Es. { "feature": "claude --prompt '{{title}}'", "bugfix": { command: "aider ...", workingDirectory: "./src" } }
- */
-export type AgentConfiguration = Record<string, string | AgentDetailedConfiguration>;
-
 export interface ColumnConfiguration {
   id: string;
   name: string;
@@ -102,7 +108,6 @@ export interface ColumnConfiguration {
 
 export interface ProjectConfiguration {
   agentCommand: string | null;
-  agents: AgentConfiguration;
   serverPort: number;
   columns: ColumnConfiguration[];
   workingDirectory: string | null;

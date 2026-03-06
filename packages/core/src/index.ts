@@ -1,10 +1,13 @@
 // @kanban-reloaded/core — Entry point
 
 // Schema (tabelle Drizzle)
-export { tasksTable, taskDependenciesTable, subtasksTable, configTable } from './models/schema.js';
+export { agentsTable, tasksTable, taskDependenciesTable, subtasksTable, configTable } from './models/schema.js';
 
 // Tipi TypeScript
 export type {
+  Agent,
+  CreateAgentInput,
+  UpdateAgentInput,
   Task,
   TaskStatus,
   TaskPriority,
@@ -16,8 +19,6 @@ export type {
   CreateSubtaskInput,
   UpdateSubtaskInput,
   SubtaskProgress,
-  AgentConfiguration,
-  AgentDetailedConfiguration,
   ColumnConfiguration,
   ProjectConfiguration,
   ConfigurationFileError,
@@ -34,3 +35,5 @@ export type { DatabaseInstance, DatabaseInitializationResult } from './storage/d
 export { TaskService } from './services/taskService.js';
 export { ConfigService } from './services/configService.js';
 export { ConfigRepository } from './services/configRepository.js';
+export { AgentService } from './services/agentService.js';
+export { AgentRepository } from './services/agentRepository.js';

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { TaskService } from '@kanban-reloaded/core';
+import type { TaskService, AgentService } from '@kanban-reloaded/core';
 import type { TaskStatus, TaskPriority } from '@kanban-reloaded/core';
 import type { WebSocketBroadcaster } from '../websocket/websocketBroadcaster.js';
 import type { AgentLauncher } from '../agent/agentLauncher.js';
@@ -16,7 +16,7 @@ interface CreateTaskRequestBody {
   description?: string;
   priority?: string;
   acceptanceCriteria?: string;
-  agent?: string;
+  agentId?: string;
 }
 
 interface TaskRouteParams {
@@ -30,7 +30,7 @@ interface UpdateTaskRequestBody {
   priority?: string;
   status?: string;
   position?: number;
-  agent?: string | null;
+  agentId?: string | null;
   agentLog?: string | null;
   agentRunning?: boolean;
   executionTime?: number | null;
@@ -75,6 +75,7 @@ interface UpdateSubtaskRequestBody {
 export function registerTaskRoutes(
   server: FastifyInstance,
   taskService: TaskService,
+  agentService: AgentService,
   websocketBroadcaster: WebSocketBroadcaster,
   agentLauncher: AgentLauncher,
 ): void {
@@ -115,12 +116,22 @@ export function registerTaskRoutes(
         });
       }
 
+      // Valida che l'agentId esista nella tabella agents
+      if (body.agentId !== undefined && body.agentId !== null) {
+        const agentExists = agentService.getAgentById(body.agentId);
+        if (!agentExists) {
+          return reply.status(400).send({
+            error: `Agente non trovato con ID: ${body.agentId}`,
+          });
+        }
+      }
+
       const createdTask = taskService.createTask({
         title: body.title,
         description: body.description,
         priority: body.priority as TaskPriority | undefined,
         acceptanceCriteria: body.acceptanceCriteria,
-        agent: body.agent,
+        agentId: body.agentId,
       });
 
       websocketBroadcaster.broadcastTaskEvent({
@@ -193,14 +204,14 @@ export function registerTaskRoutes(
       const hasPriority = body.priority !== undefined;
       const hasStatus = body.status !== undefined;
       const hasPosition = body.position !== undefined;
-      const hasAgent = body.agent !== undefined;
+      const hasAgentId = body.agentId !== undefined;
       const hasAgentLog = body.agentLog !== undefined;
       const hasAgentRunning = body.agentRunning !== undefined;
       const hasExecutionTime = body.executionTime !== undefined;
 
-      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus && !hasPosition && !hasAgent && !hasAgentLog && !hasAgentRunning && !hasExecutionTime) {
+      if (!hasTitle && !hasDescription && !hasAcceptanceCriteria && !hasPriority && !hasStatus && !hasPosition && !hasAgentId && !hasAgentLog && !hasAgentRunning && !hasExecutionTime) {
         return reply.status(400).send({
-          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status, position, agent, agentLog, agentRunning, executionTime',
+          error: 'Specificare almeno un campo da aggiornare: title, description, acceptanceCriteria, priority, status, position, agentId, agentLog, agentRunning, executionTime',
         });
       }
 
@@ -222,14 +233,24 @@ export function registerTaskRoutes(
         });
       }
 
-      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus; position?: number; agent?: string | null; agentLog?: string | null; agentRunning?: boolean; executionTime?: number | null } = {};
+      // Valida che l'agentId esista nella tabella agents (se fornito e non null)
+      if (hasAgentId && body.agentId !== null) {
+        const agentExists = agentService.getAgentById(body.agentId!);
+        if (!agentExists) {
+          return reply.status(400).send({
+            error: `Agente non trovato con ID: ${body.agentId}`,
+          });
+        }
+      }
+
+      const updateFields: { title?: string; description?: string; acceptanceCriteria?: string; priority?: TaskPriority; status?: TaskStatus; position?: number; agentId?: string | null; agentLog?: string | null; agentRunning?: boolean; executionTime?: number | null } = {};
       if (hasTitle) updateFields.title = body.title!;
       if (hasDescription) updateFields.description = body.description!;
       if (hasAcceptanceCriteria) updateFields.acceptanceCriteria = body.acceptanceCriteria!;
       if (hasPriority) updateFields.priority = body.priority! as TaskPriority;
       if (hasStatus) updateFields.status = body.status! as TaskStatus;
       if (hasPosition) updateFields.position = body.position!;
-      if (hasAgent) updateFields.agent = body.agent!;
+      if (hasAgentId) updateFields.agentId = body.agentId!;
       if (hasAgentLog) updateFields.agentLog = body.agentLog!;
       if (hasAgentRunning) updateFields.agentRunning = body.agentRunning!;
       if (hasExecutionTime) updateFields.executionTime = body.executionTime!;

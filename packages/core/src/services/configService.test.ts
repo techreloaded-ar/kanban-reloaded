@@ -25,7 +25,6 @@ const DEFAULT_COLUMNS = [
 
 const DEFAULT_CONFIGURATION: ProjectConfiguration = {
   agentCommand: null,
-  agents: {},
   serverPort: 3000,
   columns: DEFAULT_COLUMNS,
   workingDirectory: null,
@@ -94,7 +93,6 @@ describe('ConfigService', () => {
       expect(configuration.agentCommand).toBeNull();
       expect(configuration.serverPort).toBe(3000);
       expect(configuration.columns).toEqual(DEFAULT_COLUMNS);
-      expect(configuration.agents).toEqual({});
       expect(configuration.workingDirectory).toBeNull();
       expect(configuration.agentEnvironmentVariables).toEqual({});
     });
@@ -122,8 +120,6 @@ describe('ConfigService', () => {
       configRepository.setValueByKey('columns', JSON.stringify([
         { id: 'todo', name: 'Da Fare', color: '#FF0000' },
       ]));
-      configRepository.setValueByKey('agents', JSON.stringify({}));
-
       const configService = new ConfigService(testDatabase, projectDirectory);
       const configuration = configService.loadConfiguration();
 
@@ -241,7 +237,6 @@ describe('ConfigService', () => {
         agentCommand: 'claude --prompt "{{title}}"',
         serverPort: 4500,
         columns: DEFAULT_COLUMNS,
-        agents: { dev: 'claude --prompt "{{title}}"' },
         workingDirectory: null,
         agentEnvironmentVariables: { API_KEY: 'secret123' },
       };
@@ -253,7 +248,6 @@ describe('ConfigService', () => {
       const configuration = configService.loadConfiguration();
       expect(configuration.agentCommand).toBe('claude --prompt "{{title}}"');
       expect(configuration.serverPort).toBe(4500);
-      expect(configuration.agents).toEqual({ dev: 'claude --prompt "{{title}}"' });
       expect(configuration.agentEnvironmentVariables).toEqual({ API_KEY: 'secret123' });
     });
 
@@ -335,24 +329,4 @@ describe('ConfigService', () => {
     });
   });
 
-  describe('supporto agents con configurazione dettagliata', () => {
-    it('salva e carica agents con oggetti AgentDetailedConfiguration', () => {
-      const projectDirectory = createTemporaryProjectDirectory();
-      const configService = new ConfigService(testDatabase, projectDirectory);
-
-      const agents = {
-        feature: 'claude --prompt "{{title}}"',
-        bugfix: { command: 'aider --fix', workingDirectory: './src' },
-      };
-
-      configService.saveConfiguration({ agents });
-      const configuration = configService.loadConfiguration();
-
-      expect(configuration.agents['feature']).toBe('claude --prompt "{{title}}"');
-      expect(configuration.agents['bugfix']).toEqual({
-        command: 'aider --fix',
-        workingDirectory: './src',
-      });
-    });
-  });
 });

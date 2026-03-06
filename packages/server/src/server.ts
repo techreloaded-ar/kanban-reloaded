@@ -9,10 +9,12 @@ import {
   initializeDatabase,
   TaskService,
   ConfigService,
+  AgentService,
 } from '@kanban-reloaded/core';
 import type { DatabaseInitializationResult } from '@kanban-reloaded/core';
 import { registerTaskRoutes } from './routes/taskRoutes.js';
 import { registerConfigRoutes } from './routes/configRoutes.js';
+import { registerAgentRoutes } from './routes/agentRoutes.js';
 import { WebSocketBroadcaster } from './websocket/websocketBroadcaster.js';
 import { registerWebSocketRoute } from './websocket/websocketRoute.js';
 import { AgentLauncher } from './agent/agentLauncher.js';
@@ -45,6 +47,7 @@ export async function createServer(
   const databaseResult: DatabaseInitializationResult =
     initializeDatabase(projectDirectoryPath);
   const taskService = new TaskService(databaseResult.database);
+  const agentService = new AgentService(databaseResult.database);
 
   // Inizializza il servizio di configurazione su database.
   // Il seed importa i valori dal file config.json legacy (se esiste) nel DB.
@@ -71,6 +74,7 @@ export async function createServer(
     projectDirectoryPath,
   );
   agentLauncher.setTaskService(taskService);
+  agentLauncher.setAgentService(agentService);
   agentLauncher.setWebSocketBroadcaster(websocketBroadcaster);
 
   // Determina il percorso dei file statici della dashboard
@@ -97,8 +101,9 @@ export async function createServer(
   registerWebSocketRoute(server, websocketBroadcaster);
 
   // Registra route API
-  registerTaskRoutes(server, taskService, websocketBroadcaster, agentLauncher);
+  registerTaskRoutes(server, taskService, agentService, websocketBroadcaster, agentLauncher);
   registerConfigRoutes(server, configService);
+  registerAgentRoutes(server, agentService);
 
   // Alla chiusura del server, ferma tutti i processi agent attivi
   server.addHook('onClose', async () => {

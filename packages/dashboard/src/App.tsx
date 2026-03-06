@@ -13,6 +13,8 @@ import { TaskDetailPanel } from './components/TaskDetailPanel.js';
 import { ConfirmDeleteDialog } from './components/ConfirmDeleteDialog.js';
 import { SettingsPage } from './components/SettingsPage.js';
 import { getConfiguration } from './api/configApi.js';
+import { getAllAgents } from './api/agentApi.js';
+import type { Agent } from './api/agentApi.js';
 
 function getInitialDarkMode(): boolean {
   const stored = localStorage.getItem('kanban-reloaded-dark-mode');
@@ -32,7 +34,7 @@ export function App() {
   const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
   const [subtaskProgressMap, setSubtaskProgressMap] = useState<Map<string, SubtaskProgress>>(new Map());
   const [taskIdPendingDeletion, setTaskIdPendingDeletion] = useState<string | null>(null);
-  const [availableAgentNames, setAvailableAgentNames] = useState<string[]>([]);
+  const [availableAgents, setAvailableAgents] = useState<Agent[]>([]);
   const [hasAgentConfigured, setHasAgentConfigured] = useState(true); // assume configured until loaded
   const [noAgentWarningVisible, setNoAgentWarningVisible] = useState(false);
   const lastDeleteTaskTitle = useRef('');
@@ -100,12 +102,15 @@ export function App() {
 
   const refreshAvailableAgents = useCallback(async () => {
     try {
-      const config = await getConfiguration();
-      setAvailableAgentNames(Object.keys(config.agents));
-      const isAnyAgentConfigured = config.agentCommand !== null || Object.keys(config.agents).length > 0;
+      const [config, agents] = await Promise.all([
+        getConfiguration(),
+        getAllAgents(),
+      ]);
+      setAvailableAgents(agents);
+      const isAnyAgentConfigured = config.agentCommand !== null || agents.length > 0;
       setHasAgentConfigured(isAnyAgentConfigured);
     } catch {
-      // Config fetch failure is non-critical; agent list will be empty
+      // Config/agent fetch failure is non-critical; agent list will be empty
     }
   }, []);
 
@@ -141,14 +146,14 @@ export function App() {
     description: string;
     acceptanceCriteria: string;
     priority: TaskPriority;
-    agent?: string | null;
+    agentId?: string | null;
   }) => {
     await createTask({
       title: taskData.title,
       description: taskData.description || undefined,
       acceptanceCriteria: taskData.acceptanceCriteria || undefined,
       priority: taskData.priority,
-      agent: taskData.agent || undefined,
+      agentId: taskData.agentId || undefined,
     });
     await fetchTasks();
   }, [fetchTasks]);
@@ -362,7 +367,7 @@ export function App() {
             key="task-detail-panel"
             task={selectedTask}
             allTasks={tasks}
-            availableAgentNames={availableAgentNames}
+            availableAgents={availableAgents}
             hasAgentConfigured={hasAgentConfigured}
             onClose={handleCloseDetailPanel}
             onDelete={requestDeleteTask}
@@ -378,7 +383,7 @@ export function App() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreateTask={handleCreateTask}
-        availableAgentNames={availableAgentNames}
+        availableAgents={availableAgents}
       />
 
       <ConfirmDeleteDialog

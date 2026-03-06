@@ -8,11 +8,12 @@ import type { Task, TaskStatus } from "../types.js";
 import { motion } from "motion/react";
 import { getTaskDependencies, addTaskDependency, removeTaskDependency, getTaskSubtasks, createSubtask, toggleSubtask, deleteSubtask, updateTask } from "../api/taskApi.js";
 import type { TaskDependencies, Subtask, SubtaskProgress } from "../api/taskApi.js";
+import type { Agent } from "../api/agentApi.js";
 
 interface TaskDetailPanelProps {
   task: Task | null;
   allTasks: Task[];
-  availableAgentNames?: string[];
+  availableAgents?: Agent[];
   hasAgentConfigured?: boolean;
   onClose: () => void;
   onDelete: (taskId: string) => void;
@@ -34,7 +35,7 @@ const statusLabels: Record<TaskStatus, string> = {
   done: "Done",
 };
 
-export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], hasAgentConfigured = true, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, allTasks, availableAgents = [], hasAgentConfigured = true, onClose, onDelete, onMoveTask, onDependenciesChanged, onSubtaskProgressChanged, onNavigateToSettings }: TaskDetailPanelProps) {
   const [dependencies, setDependencies] = useState<TaskDependencies | null>(null);
   const [dependencyLoadingError, setDependencyLoadingError] = useState<string | null>(null);
   const [selectedBlockingTaskId, setSelectedBlockingTaskId] = useState<string>("");
@@ -257,12 +258,12 @@ export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], hasA
               <div className="text-sm space-y-2 mb-4">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Agent:</span>
-                  {!task.agentRunning && availableAgentNames.length > 0 ? (
+                  {!task.agentRunning && availableAgents.length > 0 ? (
                     <Select
-                      value={task.agent ?? "__default__"}
+                      value={task.agentId ?? "__default__"}
                       onValueChange={(value) => {
-                        const newAgent = value === "__default__" ? null : value;
-                        void updateTask(task.id, { agent: newAgent });
+                        const newAgentId = value === "__default__" ? null : value;
+                        void updateTask(task.id, { agentId: newAgentId });
                       }}
                     >
                       <SelectTrigger className="w-36 h-7 text-xs">
@@ -270,15 +271,15 @@ export function TaskDetailPanel({ task, allTasks, availableAgentNames = [], hasA
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__default__">Default</SelectItem>
-                        {availableAgentNames.map((agentName) => (
-                          <SelectItem key={agentName} value={agentName}>
-                            {agentName}
+                        {availableAgents.map((agent) => (
+                          <SelectItem key={agent.id} value={agent.id}>
+                            {agent.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <span>{task.agent || "Default"}</span>
+                    <span>{task.agentName || "Default"}</span>
                   )}
                 </div>
                 <div className="flex justify-between">

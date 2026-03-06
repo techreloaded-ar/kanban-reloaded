@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AgentLauncher, sanitizeShellValue } from './agentLauncher.js';
 import type { AgentLauncherLogger } from './agentLauncher.js';
-import type { Task, ProjectConfiguration, ConfigService } from '@kanban-reloaded/core';
+import type { Task, ProjectConfiguration, ConfigService, AgentService, Agent } from '@kanban-reloaded/core';
 
 /**
  * Crea un logger mock per i test.
@@ -28,7 +28,8 @@ function createTestTask(overrides?: Partial<Task>): Task {
     status: 'in-progress',
     agentRunning: false,
     agentLog: null,
-    agent: null,
+    agentId: null,
+    agentName: null,
     createdAt: '2026-03-05T10:00:00.000Z',
     updatedAt: null,
     executionTime: null,
@@ -45,7 +46,6 @@ function createMockConfigService(
 ): ConfigService {
   const configuration: ProjectConfiguration = {
     agentCommand: null,
-    agents: {},
     serverPort: 3000,
     columns: [],
     workingDirectory: null,
@@ -60,6 +60,21 @@ function createMockConfigService(
     on: vi.fn(),
     emit: vi.fn(),
   } as unknown as ConfigService;
+}
+
+/**
+ * Crea un AgentService mock con agenti opzionali.
+ */
+function createMockAgentService(agents: Agent[] = []): AgentService {
+  const agentMap = new Map(agents.map(agent => [agent.id, agent]));
+  return {
+    getAllAgents: vi.fn(() => agents),
+    getAgentById: vi.fn((id: string) => agentMap.get(id)),
+    getAgentByName: vi.fn((name: string) => agents.find(a => a.name === name)),
+    createAgent: vi.fn(),
+    updateAgent: vi.fn(),
+    deleteAgent: vi.fn(),
+  } as unknown as AgentService;
 }
 
 describe('sanitizeShellValue', () => {
@@ -349,17 +364,23 @@ describe('AgentLauncher', () => {
     });
   });
 
-  describe('supporto agent multipli (US-016)', () => {
-    it('usa il comando specifico quando il task ha un agent configurato nella mappa', () => {
+  describe('supporto agent multipli per ID', () => {
+    it('usa il comando specifico quando il task ha un agentId collegato a un agente nella tabella', () => {
       const mockConfigService = createMockConfigService({
         agentCommand: 'node -e "console.log(\'default agent\')"',
-        agents: {
-          feature: 'node -e "console.log(\'feature agent\')"',
-          bugfix: 'node -e "console.log(\'bugfix agent\')"',
-        },
       });
+      const featureAgent: Agent = {
+        id: 'agent-feature-id',
+        name: 'feature',
+        commandTemplate: 'node -e "console.log(\'feature agent\')"',
+        workingDirectory: null,
+        createdAt: '2026-03-06T00:00:00.000Z',
+        updatedAt: null,
+      };
+      const mockAgentService = createMockAgentService([featureAgent]);
       const launcher = new AgentLauncher(mockConfigService, mockLogger);
-      const task = createTestTask({ agent: 'feature' });
+      launcher.setAgentService(mockAgentService);
+      const task = createTestTask({ agentId: 'agent-feature-id' });
 
       const result = launcher.launchForTask(task);
 
@@ -371,35 +392,33 @@ describe('AgentLauncher', () => {
       launcher.stopAllAgents();
     });
 
-    it('usa il comando di default e logga warning quando il nome agent non e nella mappa (AC-3)', () => {
+    it('usa il comando di default e logga warning quando agentId non corrisponde a nessun agente', () => {
       const mockConfigService = createMockConfigService({
         agentCommand: 'node -e "console.log(\'default agent\')"',
-        agents: {
-          feature: 'node -e "console.log(\'feature agent\')"',
-        },
       });
+      const mockAgentService = createMockAgentService([]);
       const launcher = new AgentLauncher(mockConfigService, mockLogger);
-      const task = createTestTask({ agent: 'inesistente' });
+      launcher.setAgentService(mockAgentService);
+      const task = createTestTask({ agentId: 'agent-inesistente-id' });
 
       const result = launcher.launchForTask(task);
 
       expect(result.launched).toBe(true);
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("agent 'inesistente' non trovato"),
+        expect.stringContaining("non trovato"),
       );
 
       launcher.stopAllAgents();
     });
 
-    it('usa il comando di default quando il task non ha un agent specificato', () => {
+    it('usa il comando di default quando il task non ha un agentId specificato', () => {
       const mockConfigService = createMockConfigService({
         agentCommand: 'node -e "console.log(\'default agent\')"',
-        agents: {
-          feature: 'node -e "console.log(\'feature agent\')"',
-        },
       });
+      const mockAgentService = createMockAgentService([]);
       const launcher = new AgentLauncher(mockConfigService, mockLogger);
-      const task = createTestTask({ agent: null });
+      launcher.setAgentService(mockAgentService);
+      const task = createTestTask({ agentId: null });
 
       const result = launcher.launchForTask(task);
 

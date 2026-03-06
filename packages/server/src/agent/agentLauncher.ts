@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import type { Task, TaskService, AgentConfiguration, AgentDetailedConfiguration } from '@kanban-reloaded/core';
-import type { ConfigService } from '@kanban-reloaded/core';
+import type { Task, TaskService } from '@kanban-reloaded/core';
+import type { ConfigService, AgentService } from '@kanban-reloaded/core';
 import type { WebSocketBroadcaster, WebSocketEventPayload } from '../websocket/websocketBroadcaster.js';
 
 /**
@@ -68,6 +68,7 @@ export class AgentLauncher {
    * in momenti diversi del ciclo di vita.
    */
   private taskService: TaskService | null = null;
+  private agentService: AgentService | null = null;
   private websocketBroadcaster: WebSocketBroadcaster | null = null;
 
   constructor(
@@ -86,6 +87,14 @@ export class AgentLauncher {
    */
   setTaskService(taskService: TaskService): void {
     this.taskService = taskService;
+  }
+
+  /**
+   * Imposta l'AgentService per permettere all'AgentLauncher di risolvere
+   * il comando agent per ID dalla tabella agents.
+   */
+  setAgentService(agentService: AgentService): void {
+    this.agentService = agentService;
   }
 
   /**
@@ -284,27 +293,10 @@ export class AgentLauncher {
   }
 
   /**
-   * Estrae il template comando da un valore nella mappa agents.
-   * Il valore puo essere una stringa semplice o un oggetto AgentDetailedConfiguration.
-   */
-  private extractCommandFromAgentValue(agentValue: string | AgentDetailedConfiguration): string {
-    return typeof agentValue === 'string' ? agentValue : agentValue.command;
-  }
-
-  /**
-   * Estrae il workingDirectory da un valore nella mappa agents.
-   * Restituisce undefined se non specificato o se il valore e una stringa semplice.
-   */
-  private extractWorkingDirectoryFromAgentValue(agentValue: string | AgentDetailedConfiguration): string | undefined {
-    if (typeof agentValue === 'string') return undefined;
-    return agentValue.workingDirectory;
-  }
-
-  /**
    * Risolve la directory di lavoro effettiva per il processo agent.
    *
    * Ordine di priorita:
-   * 1. workingDirectory specifico dell'agent (se oggetto con campo workingDirectory)
+   * 1. workingDirectory specifico dell'agent (dalla tabella agents)
    * 2. workingDirectory globale dalla configurazione
    * 3. La directory del progetto (.kanban-reloaded/ padre)
    *
@@ -313,7 +305,7 @@ export class AgentLauncher {
    */
   private resolveWorkingDirectory(
     globalWorkingDirectory: string | null,
-    agentSpecificWorkingDirectory?: string,
+    agentSpecificWorkingDirectory?: string | null,
   ): string {
     const candidatePath = agentSpecificWorkingDirectory ?? globalWorkingDirectory;
 
@@ -343,35 +335,32 @@ export class AgentLauncher {
   /**
    * Risolve il comando agent e la directory di lavoro per un task.
    *
-   * Logica di risoluzione (US-016 + US-042):
-   * 1. Se il task ha un campo `agent` specificato, cerca nella mappa `agents` del config
-   * 2. Se il nome agent non corrisponde a nessuna configurazione, usa il comando di default
-   *    e logga un warning (AC-3)
-   * 3. Se il task non ha un campo `agent`, usa il comando di default
-   * 4. La directory di lavoro segue la priorita: agent specifico > globale > progetto
+   * Logica di risoluzione:
+   * 1. Se il task ha un `agentId`, cerca l'agente nella tabella agents (via AgentService)
+   * 2. Se l'agente esiste, usa il suo commandTemplate e workingDirectory
+   * 3. Se l'agentId non e null ma l'agente non esiste piu, fallback al comando di default
+   * 4. Se il task non ha agentId, usa il comando di default
+   * 5. La directory di lavoro segue la priorita: agent specifico > globale > progetto
    */
   private resolveAgentCommandAndWorkingDirectory(
     task: Task,
-    configuration: { agentCommand: string | null; agents: AgentConfiguration; workingDirectory: string | null },
+    configuration: { agentCommand: string | null; workingDirectory: string | null },
   ): { command: string | null; workingDirectory: string } {
-    let agentSpecificWorkingDirectory: string | undefined;
-
-    if (task.agent) {
-      const agentValue = configuration.agents[task.agent];
-      if (agentValue) {
+    if (task.agentId && this.agentService) {
+      const agent = this.agentService.getAgentById(task.agentId);
+      if (agent) {
         this.logger.info(
-          `Task ${task.displayId}: uso agent '${task.agent}' con comando specifico dalla configurazione.`,
+          `Task ${task.displayId}: uso agent '${agent.name}' (ID: ${agent.id}) con comando specifico.`,
         );
-        agentSpecificWorkingDirectory = this.extractWorkingDirectoryFromAgentValue(agentValue);
         return {
-          command: this.extractCommandFromAgentValue(agentValue),
-          workingDirectory: this.resolveWorkingDirectory(configuration.workingDirectory, agentSpecificWorkingDirectory),
+          command: agent.commandTemplate,
+          workingDirectory: this.resolveWorkingDirectory(configuration.workingDirectory, agent.workingDirectory),
         };
       }
 
-      // AC-3: agent specificato ma non trovato nella configurazione -> warning + fallback al default
+      // L'agente non esiste piu (eliminato) -> fallback al default
       this.logger.warn(
-        `Task ${task.displayId}: agent '${task.agent}' non trovato nella configurazione agents. ` +
+        `Task ${task.displayId}: agente con ID '${task.agentId}' non trovato. ` +
         `Uso del comando agent di default.`,
       );
     }

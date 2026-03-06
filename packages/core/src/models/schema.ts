@@ -1,5 +1,14 @@
 import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core';
 
+export const agentsTable = sqliteTable('agents', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  commandTemplate: text('command_template').notNull(),
+  workingDirectory: text('working_directory'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at'),
+});
+
 export const tasksTable = sqliteTable('tasks', {
   id: text('id').primaryKey(),
   displayId: text('display_id').notNull().unique(),
@@ -10,7 +19,7 @@ export const tasksTable = sqliteTable('tasks', {
   status: text('status', { enum: ['backlog', 'in-progress', 'done'] }).notNull().default('backlog'),
   agentRunning: integer('agent_running', { mode: 'boolean' }).notNull().default(false),
   agentLog: text('agent_log'),
-  agent: text('agent'),
+  agentId: text('agent_id').references(() => agentsTable.id, { onDelete: 'set null' }),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at'),
   executionTime: real('execution_time'),

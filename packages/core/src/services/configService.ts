@@ -7,8 +7,6 @@ import { KANBAN_DIRECTORY_NAME, CONFIG_FILENAME } from '../storage/constants.js'
 import type {
   ProjectConfiguration,
   ColumnConfiguration,
-  AgentConfiguration,
-  AgentDetailedConfiguration,
 } from '../models/types.js';
 
 /**
@@ -16,7 +14,6 @@ import type {
  */
 const CONFIG_KEYS = {
   AGENT_COMMAND: 'agentCommand',
-  AGENTS: 'agents',
   SERVER_PORT: 'serverPort',
   COLUMNS: 'columns',
   WORKING_DIRECTORY: 'workingDirectory',
@@ -32,7 +29,6 @@ const DEFAULT_COLUMNS: ColumnConfiguration[] = [
 
 const DEFAULT_CONFIGURATION: ProjectConfiguration = {
   agentCommand: null,
-  agents: {},
   serverPort: 3000,
   columns: DEFAULT_COLUMNS,
   workingDirectory: null,
@@ -60,23 +56,6 @@ function isValidColumnConfiguration(value: unknown): value is ColumnConfiguratio
     typeof candidate['name'] === 'string' &&
     typeof candidate['color'] === 'string'
   );
-}
-
-/**
- * Verifica che un valore sia un AgentDetailedConfiguration valido.
- */
-function isValidAgentDetailedConfiguration(value: unknown): value is AgentDetailedConfiguration {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const candidate = value as Record<string, unknown>;
-  if (typeof candidate['command'] !== 'string') {
-    return false;
-  }
-  if ('workingDirectory' in candidate && typeof candidate['workingDirectory'] !== 'string') {
-    return false;
-  }
-  return true;
 }
 
 /**
@@ -222,10 +201,6 @@ export class ConfigService extends EventEmitter<ConfigServiceEventMap> {
       JSON.stringify(configuration.agentCommand),
     );
     this.configRepository.setValueByKey(
-      CONFIG_KEYS.AGENTS,
-      JSON.stringify(configuration.agents),
-    );
-    this.configRepository.setValueByKey(
       CONFIG_KEYS.SERVER_PORT,
       JSON.stringify(configuration.serverPort),
     );
@@ -253,11 +228,6 @@ export class ConfigService extends EventEmitter<ConfigServiceEventMap> {
         entries.get(CONFIG_KEYS.AGENT_COMMAND),
         DEFAULT_CONFIGURATION.agentCommand,
         this.isValidAgentCommand,
-      ),
-      agents: this.parseJsonValueOrDefault(
-        entries.get(CONFIG_KEYS.AGENTS),
-        { ...DEFAULT_CONFIGURATION.agents },
-        this.isValidAgentsMap,
       ),
       serverPort: this.parseJsonValueOrDefault(
         entries.get(CONFIG_KEYS.SERVER_PORT),
@@ -309,18 +279,6 @@ export class ConfigService extends EventEmitter<ConfigServiceEventMap> {
     return value === null || typeof value === 'string';
   }
 
-  private isValidAgentsMap(value: unknown): value is AgentConfiguration {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-      return false;
-    }
-    const map = value as Record<string, unknown>;
-    for (const agentValue of Object.values(map)) {
-      if (typeof agentValue === 'string') continue;
-      if (!isValidAgentDetailedConfiguration(agentValue)) return false;
-    }
-    return true;
-  }
-
   private isValidServerPort(value: unknown): value is number {
     return typeof value === 'number' && value > 0 && value <= 65535;
   }
@@ -364,9 +322,6 @@ export class ConfigService extends EventEmitter<ConfigServiceEventMap> {
         agentCommand: this.isValidAgentCommand(configObject['agentCommand'])
           ? configObject['agentCommand']
           : DEFAULT_CONFIGURATION.agentCommand,
-        agents: this.isValidAgentsMap(configObject['agents'])
-          ? configObject['agents']
-          : { ...DEFAULT_CONFIGURATION.agents },
         serverPort: this.isValidServerPort(configObject['serverPort'])
           ? configObject['serverPort']
           : DEFAULT_CONFIGURATION.serverPort,

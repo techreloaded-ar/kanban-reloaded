@@ -4,6 +4,7 @@ import { Button } from "./ui/button.js";
 import { Input } from "./ui/input.js";
 import { Textarea } from "./ui/textarea.js";
 import type { TaskPriority } from "../types.js";
+import type { Agent } from "../api/agentApi.js";
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -13,17 +14,17 @@ interface CreateTaskModalProps {
     description: string;
     acceptanceCriteria: string;
     priority: TaskPriority;
-    agent?: string | null;
+    agentId?: string | null;
   }) => Promise<void>;
-  availableAgentNames?: string[];
+  availableAgents?: Agent[];
 }
 
-export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgentNames = [] }: CreateTaskModalProps) {
+export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgents = [] }: CreateTaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgentN
     setDescription("");
     setAcceptanceCriteria("");
     setPriority("medium");
-    setSelectedAgent(null);
+    setSelectedAgentId(null);
     setValidationError(null);
     setApiError(null);
     setSubmitting(false);
@@ -57,7 +58,7 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgentN
         description,
         acceptanceCriteria,
         priority,
-        agent: selectedAgent,
+        agentId: selectedAgentId,
       });
       resetForm();
       onClose();
@@ -149,27 +150,27 @@ export function CreateTaskModal({ isOpen, onClose, onCreateTask, availableAgentN
             </div>
           </div>
 
-          {availableAgentNames.length > 0 && (
+          {availableAgents.length > 0 && (
             <div>
               <label className="block mb-2">Agent</label>
               <div className="flex gap-2 flex-wrap">
                 <Button
                   type="button"
-                  variant={selectedAgent === null ? "default" : "outline"}
-                  onClick={() => setSelectedAgent(null)}
+                  variant={selectedAgentId === null ? "default" : "outline"}
+                  onClick={() => setSelectedAgentId(null)}
                   size="sm"
                 >
                   Default
                 </Button>
-                {availableAgentNames.map((agentName) => (
+                {availableAgents.map((agent) => (
                   <Button
-                    key={agentName}
+                    key={agent.id}
                     type="button"
-                    variant={selectedAgent === agentName ? "default" : "outline"}
-                    onClick={() => setSelectedAgent(agentName)}
+                    variant={selectedAgentId === agent.id ? "default" : "outline"}
+                    onClick={() => setSelectedAgentId(agent.id)}
                     size="sm"
                   >
-                    {agentName}
+                    {agent.name}
                   </Button>
                 ))}
               </div>

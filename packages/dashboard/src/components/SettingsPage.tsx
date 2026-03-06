@@ -5,8 +5,12 @@ import { Input } from "./ui/input.js";
 import { Badge } from "./ui/badge.js";
 import { getConfiguration, updateConfiguration } from "../api/configApi.js";
 import type { ProjectConfiguration } from "../api/configApi.js";
+import { getAllAgents, createAgent, updateAgent as updateAgentApi, deleteAgent } from "../api/agentApi.js";
+import type { Agent } from "../api/agentApi.js";
 
 interface AgentEntry {
+  /** null se l'agente e nuovo (non ancora salvato sul server) */
+  serverId: string | null;
   name: string;
   commandTemplate: string;
   workingDirectory: string;
@@ -52,16 +56,20 @@ export function SettingsPage() {
 
   const loadConfiguration = useCallback(async () => {
     try {
-      const loadedConfig = await getConfiguration();
+      const [loadedConfig, loadedAgents] = await Promise.all([
+        getConfiguration(),
+        getAllAgents(),
+      ]);
       setConfiguration(loadedConfig);
       setDefaultAgentCommand(loadedConfig.agentCommand ?? "");
       setServerPort(String(loadedConfig.serverPort));
       setGlobalWorkingDirectory(loadedConfig.workingDirectory ?? "");
       setAgentEntries(
-        Object.entries(loadedConfig.agents).map(([name, agentValue]) => ({
-          name,
-          commandTemplate: typeof agentValue === 'string' ? agentValue : agentValue.command,
-          workingDirectory: typeof agentValue === 'string' ? '' : (agentValue.workingDirectory ?? ''),
+        loadedAgents.map((agent) => ({
+          serverId: agent.id,
+          name: agent.name,
+          commandTemplate: agent.commandTemplate,
+          workingDirectory: agent.workingDirectory ?? '',
         }))
       );
       setEnvironmentVariableEntries(
@@ -89,21 +97,54 @@ export function SettingsPage() {
     setSaveSuccess(false);
 
     try {
-      const agentsMap: Record<string, string | { command: string; workingDirectory?: string }> = {};
+      // 1. Salva agenti tramite API CRUD dedicate
+      const currentServerAgents = await getAllAgents();
+      const serverAgentMap = new Map(currentServerAgents.map(agent => [agent.id, agent]));
+
+      // Agenti da creare: quelli senza serverId e con dati validi
+      // Agenti da aggiornare: quelli con serverId che sono cambiati
+      // Agenti da eliminare: quelli presenti sul server ma non piu nella lista locale
+      const localServerIds = new Set<string>();
+
       for (const entry of agentEntries) {
         const trimmedName = entry.name.trim();
-        if (trimmedName && entry.commandTemplate.trim()) {
-          if (entry.workingDirectory.trim()) {
-            agentsMap[trimmedName] = {
-              command: entry.commandTemplate,
-              workingDirectory: entry.workingDirectory.trim(),
-            };
-          } else {
-            agentsMap[trimmedName] = entry.commandTemplate;
+        const trimmedCommand = entry.commandTemplate.trim();
+        if (!trimmedName || !trimmedCommand) continue;
+
+        if (entry.serverId) {
+          localServerIds.add(entry.serverId);
+          const serverAgent = serverAgentMap.get(entry.serverId);
+          // Aggiorna solo se qualcosa e cambiato
+          if (serverAgent && (
+            serverAgent.name !== trimmedName ||
+            serverAgent.commandTemplate !== trimmedCommand ||
+            (serverAgent.workingDirectory ?? '') !== entry.workingDirectory.trim()
+          )) {
+            await updateAgentApi(entry.serverId, {
+              name: trimmedName,
+              commandTemplate: trimmedCommand,
+              workingDirectory: entry.workingDirectory.trim() || null,
+            });
           }
+        } else {
+          // Nuovo agente
+          const created = await createAgent({
+            name: trimmedName,
+            commandTemplate: trimmedCommand,
+            workingDirectory: entry.workingDirectory.trim() || null,
+          });
+          localServerIds.add(created.id);
         }
       }
 
+      // Elimina agenti rimossi dalla lista
+      for (const serverAgent of currentServerAgents) {
+        if (!localServerIds.has(serverAgent.id)) {
+          await deleteAgent(serverAgent.id);
+        }
+      }
+
+      // 2. Salva la configurazione (senza agents)
       // Build env vars map: only include entries that have actual values (not masked)
       const envVarsMap: Record<string, string> = {};
       const hasModifiedEnvVars = environmentVariableEntries.some(entry => !entry.isMasked);
@@ -118,7 +159,6 @@ export function SettingsPage() {
 
       const updatePayload: Partial<ProjectConfiguration> = {
         agentCommand: defaultAgentCommand.trim() || null,
-        agents: agentsMap,
         serverPort: parseInt(serverPort, 10) || 3000,
         workingDirectory: globalWorkingDirectory.trim() || null,
       };
@@ -131,6 +171,16 @@ export function SettingsPage() {
       const updatedConfig = await updateConfiguration(updatePayload);
 
       setConfiguration(updatedConfig);
+      // Ricarica gli agenti dal server per avere gli ID corretti
+      const refreshedAgents = await getAllAgents();
+      setAgentEntries(
+        refreshedAgents.map((agent) => ({
+          serverId: agent.id,
+          name: agent.name,
+          commandTemplate: agent.commandTemplate,
+          workingDirectory: agent.workingDirectory ?? '',
+        }))
+      );
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error: unknown) {
@@ -139,10 +189,10 @@ export function SettingsPage() {
     } finally {
       setSaving(false);
     }
-  }, [defaultAgentCommand, serverPort, agentEntries]);
+  }, [defaultAgentCommand, serverPort, globalWorkingDirectory, agentEntries, environmentVariableEntries]);
 
   const handleAddAgent = useCallback(() => {
-    setAgentEntries(previous => [...previous, { name: "", commandTemplate: "", workingDirectory: "" }]);
+    setAgentEntries(previous => [...previous, { serverId: null, name: "", commandTemplate: "", workingDirectory: "" }]);
   }, []);
 
   const handleRemoveAgent = useCallback((indexToRemove: number) => {

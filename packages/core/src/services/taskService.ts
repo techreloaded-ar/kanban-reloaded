@@ -1,8 +1,26 @@
 import crypto from 'node:crypto';
 import { eq, and, sql, desc } from 'drizzle-orm';
 import type { DatabaseInstance } from '../storage/database.js';
-import { tasksTable, taskDependenciesTable, subtasksTable } from '../models/schema.js';
+import { tasksTable, taskDependenciesTable, subtasksTable, agentsTable } from '../models/schema.js';
 import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus, TaskDependency, Subtask, CreateSubtaskInput, UpdateSubtaskInput, SubtaskProgress } from '../models/types.js';
+
+/** Riga grezza dalla tabella tasks (senza agentName denormalizzato) */
+interface TaskRow {
+  id: string;
+  displayId: string;
+  title: string;
+  description: string;
+  acceptanceCriteria: string;
+  priority: 'high' | 'medium' | 'low';
+  status: 'backlog' | 'in-progress' | 'done';
+  agentRunning: boolean;
+  agentLog: string | null;
+  agentId: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  executionTime: number | null;
+  position: number;
+}
 
 /**
  * Servizio per la gestione delle task (CRUD).
@@ -10,6 +28,51 @@ import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus, TaskDependency
  */
 export class TaskService {
   constructor(private readonly database: DatabaseInstance) {}
+
+  /**
+   * Arricchisce una riga task con il nome dell'agente (denormalizzato).
+   * Se l'agentId e null o l'agente non esiste piu, agentName sara null.
+   */
+  private enrichTaskWithAgentName(row: TaskRow): Task {
+    let agentName: string | null = null;
+    if (row.agentId) {
+      const agent = this.database
+        .select({ name: agentsTable.name })
+        .from(agentsTable)
+        .where(eq(agentsTable.id, row.agentId))
+        .get();
+      agentName = agent?.name ?? null;
+    }
+    return { ...row, agentName };
+  }
+
+  /**
+   * Arricchisce un array di righe task con i nomi degli agenti.
+   * Usa un singolo fetch di tutti gli agenti per efficienza.
+   */
+  private enrichTasksWithAgentNames(rows: TaskRow[]): Task[] {
+    // Raccogli tutti gli agentId unici non-null
+    const agentIds = new Set<string>();
+    for (const row of rows) {
+      if (row.agentId) agentIds.add(row.agentId);
+    }
+
+    if (agentIds.size === 0) {
+      return rows.map((row) => ({ ...row, agentName: null }));
+    }
+
+    // Fetch tutti gli agenti in un colpo solo
+    const allAgents = this.database
+      .select({ id: agentsTable.id, name: agentsTable.name })
+      .from(agentsTable)
+      .all();
+    const agentNameMap = new Map(allAgents.map((agent) => [agent.id, agent.name]));
+
+    return rows.map((row) => ({
+      ...row,
+      agentName: row.agentId ? (agentNameMap.get(row.agentId) ?? null) : null,
+    }));
+  }
 
   /**
    * Crea un nuovo task con valori di default per i campi opzionali.
@@ -46,8 +109,11 @@ export class TaskService {
       .get();
     const nextPosition = (maxPositionResult?.maxPosition ?? 0) + 1;
 
-    const newTask: Task = {
-      id: crypto.randomUUID(),
+    const taskId = crypto.randomUUID();
+    const agentId = input.agentId ?? null;
+
+    this.database.insert(tasksTable).values({
+      id: taskId,
       displayId,
       title: sanitizedTitle,
       description: sanitizedDescription,
@@ -56,39 +122,39 @@ export class TaskService {
       status: targetStatus,
       agentRunning: false,
       agentLog: null,
-      agent: input.agent ?? null,
+      agentId,
       createdAt: new Date().toISOString(),
       updatedAt: null,
       executionTime: null,
       position: input.position ?? nextPosition,
-    };
+    }).run();
 
-    this.database.insert(tasksTable).values(newTask).run();
-
-    return newTask;
+    return this.getTaskById(taskId) as Task;
   }
 
   /**
    * Restituisce tutti i task ordinati per posizione crescente.
    */
   getAllTasks(): Task[] {
-    return this.database
+    const rows = this.database
       .select()
       .from(tasksTable)
       .orderBy(tasksTable.position)
-      .all() as Task[];
+      .all() as TaskRow[];
+    return this.enrichTasksWithAgentNames(rows);
   }
 
   /**
    * Restituisce i task filtrati per status, ordinati per posizione crescente.
    */
   getTasksByStatus(status: TaskStatus): Task[] {
-    return this.database
+    const rows = this.database
       .select()
       .from(tasksTable)
       .where(eq(tasksTable.status, status))
       .orderBy(tasksTable.position)
-      .all() as Task[];
+      .all() as TaskRow[];
+    return this.enrichTasksWithAgentNames(rows);
   }
 
   /**
@@ -96,11 +162,12 @@ export class TaskService {
    * Ritorna undefined se il task non esiste.
    */
   getTaskById(taskId: string): Task | undefined {
-    return this.database
+    const row = this.database
       .select()
       .from(tasksTable)
       .where(eq(tasksTable.id, taskId))
-      .get() as Task | undefined;
+      .get() as TaskRow | undefined;
+    return row ? this.enrichTaskWithAgentName(row) : undefined;
   }
 
   /**
@@ -148,7 +215,7 @@ export class TaskService {
     if (input.agentRunning !== undefined) fieldsToUpdate.agentRunning = input.agentRunning;
     if (input.agentLog !== undefined) fieldsToUpdate.agentLog = input.agentLog;
     if (input.executionTime !== undefined) fieldsToUpdate.executionTime = input.executionTime;
-    if (input.agent !== undefined) fieldsToUpdate.agent = input.agent;
+    if (input.agentId !== undefined) fieldsToUpdate.agentId = input.agentId;
     if (input.position !== undefined) fieldsToUpdate.position = input.position;
 
     this.database
@@ -187,11 +254,12 @@ export class TaskService {
    * Ritorna undefined se il task non esiste.
    */
   getTaskByDisplayId(displayId: string): Task | undefined {
-    return this.database
+    const row = this.database
       .select()
       .from(tasksTable)
       .where(sql`LOWER(${tasksTable.displayId}) = LOWER(${displayId})`)
-      .get() as Task | undefined;
+      .get() as TaskRow | undefined;
+    return row ? this.enrichTaskWithAgentName(row) : undefined;
   }
 
   /**

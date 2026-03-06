@@ -12,7 +12,8 @@ export interface Task {
   status: TaskStatus;
   agentRunning: boolean;
   agentLog: string | null;
-  agent: string | null;
+  agentId: string | null;
+  agentName: string | null;
   createdAt: string;
   executionTime: number | null;
   position: number;

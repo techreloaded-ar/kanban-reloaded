@@ -7,7 +7,7 @@ export interface CreateTaskPayload {
   description?: string;
   acceptanceCriteria?: string;
   priority?: TaskPriority;
-  agent?: string | null;
+  agentId?: string | null;
 }
 
 export async function getAllTasks(): Promise<Task[]> {
@@ -37,7 +37,7 @@ export interface UpdateTaskPayload {
   priority?: TaskPriority;
   status?: TaskStatus;
   position?: number;
-  agent?: string | null;
+  agentId?: string | null;
 }
 
 export async function updateTask(taskId: string, payload: UpdateTaskPayload): Promise<Task> {

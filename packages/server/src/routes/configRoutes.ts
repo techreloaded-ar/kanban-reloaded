@@ -4,7 +4,6 @@ import type { ProjectConfiguration, ColumnConfiguration } from '@kanban-reloaded
 
 interface UpdateConfigurationRequestBody {
   agentCommand?: string | null;
-  agents?: Record<string, unknown>;
   serverPort?: number;
   columns?: unknown[];
   workingDirectory?: string | null;
@@ -105,45 +104,6 @@ export function registerConfigRoutes(
         });
       }
 
-      // Validazione di agents: deve essere un oggetto con valori stringa
-      if (body.agents !== undefined) {
-        if (
-          typeof body.agents !== 'object' ||
-          body.agents === null ||
-          Array.isArray(body.agents)
-        ) {
-          return reply.status(400).send({
-            error:
-              "Il campo 'agents' deve essere un oggetto (mappa nome agent -> template comando)",
-          });
-        }
-
-        for (const [agentName, agentValue] of Object.entries(
-          body.agents,
-        )) {
-          if (typeof agentValue === 'string') {
-            continue;
-          }
-          if (typeof agentValue === 'object' && agentValue !== null && !Array.isArray(agentValue)) {
-            const detailedConfig = agentValue as Record<string, unknown>;
-            if (typeof detailedConfig['command'] !== 'string') {
-              return reply.status(400).send({
-                error: `L'agent '${agentName}' come oggetto deve avere un campo 'command' di tipo stringa`,
-              });
-            }
-            if ('workingDirectory' in detailedConfig && typeof detailedConfig['workingDirectory'] !== 'string') {
-              return reply.status(400).send({
-                error: `Il campo 'workingDirectory' dell'agent '${agentName}' deve essere una stringa`,
-              });
-            }
-            continue;
-          }
-          return reply.status(400).send({
-            error: `Il valore dell'agent '${agentName}' deve essere una stringa o un oggetto con campo 'command', ricevuto ${typeof agentValue}`,
-          });
-        }
-      }
-
       // Validazione di serverPort: deve essere un numero positivo
       if (body.serverPort !== undefined) {
         if (typeof body.serverPort !== 'number' || body.serverPort <= 0) {
@@ -217,9 +177,6 @@ export function registerConfigRoutes(
 
       if (body.agentCommand !== undefined) {
         updatedFields.agentCommand = body.agentCommand;
-      }
-      if (body.agents !== undefined) {
-        updatedFields.agents = body.agents as ProjectConfiguration['agents'];
       }
       if (body.serverPort !== undefined) {
         updatedFields.serverPort = body.serverPort;

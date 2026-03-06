@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import type { DatabaseInstance } from '../storage/database.js';
-import { tasksTable } from '../models/schema.js';
-import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus } from '../models/types.js';
+import { tasksTable, taskDependenciesTable } from '../models/schema.js';
+import type { Task, CreateTaskInput, UpdateTaskInput, TaskStatus, TaskDependency } from '../models/types.js';
 
 /**
  * Servizio per la gestione delle task (CRUD).
@@ -130,7 +130,21 @@ export class TaskService {
     if (input.description !== undefined) fieldsToUpdate.description = input.description.trim();
     if (input.acceptanceCriteria !== undefined) fieldsToUpdate.acceptanceCriteria = input.acceptanceCriteria.trim();
     if (input.priority !== undefined) fieldsToUpdate.priority = input.priority;
-    if (input.status !== undefined) fieldsToUpdate.status = input.status;
+    if (input.status !== undefined) {
+      // Se il task viene spostato a "in-progress", verifica che non sia bloccato
+      if (input.status === 'in-progress' && existingTask.status !== 'in-progress') {
+        const uncompletedBlockers = this.getUncompletedBlockers(taskId);
+        if (uncompletedBlockers.length > 0) {
+          const blockersList = uncompletedBlockers
+            .map((blocker) => `${blocker.displayId} - ${blocker.title}`)
+            .join(', ');
+          throw new Error(
+            `Impossibile spostare il task in "In Progress": e bloccato dai seguenti task non completati: ${blockersList}`,
+          );
+        }
+      }
+      fieldsToUpdate.status = input.status;
+    }
     if (input.agentRunning !== undefined) fieldsToUpdate.agentRunning = input.agentRunning;
     if (input.agentLog !== undefined) fieldsToUpdate.agentLog = input.agentLog;
     if (input.executionTime !== undefined) fieldsToUpdate.executionTime = input.executionTime;
@@ -190,6 +204,137 @@ export class TaskService {
    * @throws Error se un task ID non esiste nel database
    * @throws Error se un task non appartiene alla colonna (status) specificata
    */
+  /**
+   * Aggiunge una dipendenza: blockingTaskId blocca blockedTaskId.
+   * Il task blockedTaskId non potra essere spostato in "In Progress" finche
+   * blockingTaskId non e in stato "Done".
+   *
+   * @throws Error se uno dei due task non esiste
+   * @throws Error se si tenta di creare una auto-dipendenza
+   * @throws Error se la dipendenza esiste gia
+   */
+  addDependency(blockingTaskId: string, blockedTaskId: string): void {
+    if (blockingTaskId === blockedTaskId) {
+      throw new Error('Un task non puo bloccare se stesso');
+    }
+
+    const blockingTask = this.getTaskById(blockingTaskId);
+    if (!blockingTask) {
+      throw new Error(`Task bloccante non trovato con ID: ${blockingTaskId}`);
+    }
+
+    const blockedTask = this.getTaskById(blockedTaskId);
+    if (!blockedTask) {
+      throw new Error(`Task bloccato non trovato con ID: ${blockedTaskId}`);
+    }
+
+    // Verifica che la dipendenza non esista gia
+    const existingDependency = this.database
+      .select()
+      .from(taskDependenciesTable)
+      .where(
+        and(
+          eq(taskDependenciesTable.blockingTaskId, blockingTaskId),
+          eq(taskDependenciesTable.blockedTaskId, blockedTaskId),
+        ),
+      )
+      .get();
+
+    if (existingDependency) {
+      throw new Error(
+        `La dipendenza tra ${blockingTask.displayId} e ${blockedTask.displayId} esiste gia`,
+      );
+    }
+
+    this.database
+      .insert(taskDependenciesTable)
+      .values({ blockingTaskId, blockedTaskId })
+      .run();
+  }
+
+  /**
+   * Rimuove una dipendenza tra due task.
+   *
+   * @throws Error se la dipendenza non esiste
+   */
+  removeDependency(blockingTaskId: string, blockedTaskId: string): void {
+    const existingDependency = this.database
+      .select()
+      .from(taskDependenciesTable)
+      .where(
+        and(
+          eq(taskDependenciesTable.blockingTaskId, blockingTaskId),
+          eq(taskDependenciesTable.blockedTaskId, blockedTaskId),
+        ),
+      )
+      .get();
+
+    if (!existingDependency) {
+      throw new Error(
+        `Dipendenza non trovata tra i task ${blockingTaskId} e ${blockedTaskId}`,
+      );
+    }
+
+    this.database
+      .delete(taskDependenciesTable)
+      .where(
+        and(
+          eq(taskDependenciesTable.blockingTaskId, blockingTaskId),
+          eq(taskDependenciesTable.blockedTaskId, blockedTaskId),
+        ),
+      )
+      .run();
+  }
+
+  /**
+   * Restituisce i task che bloccano il task specificato.
+   * Cioe, i task che devono essere completati prima che taskId possa procedere.
+   */
+  getBlockingTasks(taskId: string): Task[] {
+    const dependencies = this.database
+      .select({ blockingTaskId: taskDependenciesTable.blockingTaskId })
+      .from(taskDependenciesTable)
+      .where(eq(taskDependenciesTable.blockedTaskId, taskId))
+      .all();
+
+    return dependencies
+      .map((dependency) => this.getTaskById(dependency.blockingTaskId))
+      .filter((task): task is Task => task !== undefined);
+  }
+
+  /**
+   * Restituisce i task che sono bloccati dal task specificato.
+   * Cioe, i task che dipendono dal completamento di taskId.
+   */
+  getBlockedTasks(taskId: string): Task[] {
+    const dependencies = this.database
+      .select({ blockedTaskId: taskDependenciesTable.blockedTaskId })
+      .from(taskDependenciesTable)
+      .where(eq(taskDependenciesTable.blockingTaskId, taskId))
+      .all();
+
+    return dependencies
+      .map((dependency) => this.getTaskById(dependency.blockedTaskId))
+      .filter((task): task is Task => task !== undefined);
+  }
+
+  /**
+   * Restituisce i task bloccanti che NON sono ancora in stato "done".
+   * Usato per determinare se un task puo essere spostato in "In Progress".
+   */
+  getUncompletedBlockers(taskId: string): Task[] {
+    return this.getBlockingTasks(taskId).filter(
+      (blockingTask) => blockingTask.status !== 'done',
+    );
+  }
+
+  /**
+   * Restituisce true se il task ha almeno un bloccante non completato.
+   */
+  isTaskBlocked(taskId: string): boolean {
+    return this.getUncompletedBlockers(taskId).length > 0;
+  }
+
   reorderTasksInColumn(taskIds: string[], status: TaskStatus): void {
     const currentTimestamp = new Date().toISOString();
 

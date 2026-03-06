@@ -74,3 +74,39 @@ export async function deleteTask(taskId: string, force?: boolean): Promise<Task>
   }
   return response.json() as Promise<Task>;
 }
+
+// --- Dependency API functions ---
+
+export interface TaskDependencies {
+  blockingTasks: Task[];
+  blockedByTasks: Task[];
+}
+
+export async function getTaskDependencies(taskId: string): Promise<TaskDependencies> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/dependencies`);
+  if (!response.ok) {
+    throw new Error('Errore nel recupero delle dipendenze');
+  }
+  return response.json() as Promise<TaskDependencies>;
+}
+
+export async function addTaskDependency(blockedTaskId: string, blockingTaskId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${blockedTaskId}/dependencies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ blockingTaskId }),
+  });
+  if (!response.ok) {
+    const errorBody = await response.json() as { error?: string };
+    throw new Error(errorBody.error || "Errore nell'aggiunta della dipendenza");
+  }
+}
+
+export async function removeTaskDependency(blockedTaskId: string, blockingTaskId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/tasks/${blockedTaskId}/dependencies/${blockingTaskId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    throw new Error('Errore nella rimozione della dipendenza');
+  }
+}

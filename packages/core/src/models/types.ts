@@ -19,6 +19,18 @@ export interface Task {
   position: number;
 }
 
+export interface TaskDependency {
+  blockingTaskId: string;
+  blockedTaskId: string;
+}
+
+export interface TaskWithDependencies extends Task {
+  /** Task che bloccano questo task (devono essere completati prima) */
+  blockingTasks: Task[];
+  /** Task che sono bloccati da questo task */
+  blockedByTasks: Task[];
+}
+
 export interface CreateTaskInput {
   title: string;
   description?: string;

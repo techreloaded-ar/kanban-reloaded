@@ -513,7 +513,7 @@ so that posso accedere alla board visuale nel browser quando ne ho bisogno.
 
 ---
 
-#### US-021: Dipendenze tra task
+#### US-021: Dipendenze tra task — DONE
 
 **Epic:** EP-006 | **Priority:** MEDIUM | **Story Points:** 5
 
@@ -523,9 +523,11 @@ I want definire relazioni di dipendenza tra task (es. "blocca" / "e bloccato da"
 so that il team sappia quali task devono essere completati prima di iniziarne altri.
 
 **Acceptance Criteria**
-- [ ] Ogni task puo avere una lista di task bloccanti; nella board, i task bloccati mostrano un indicatore visuale (es. icona lucchetto) e non possono essere spostati in "In Progress" finche i task bloccanti non sono in stato "Done"
-- [ ] Dalla dashboard, l'utente puo aggiungere o rimuovere dipendenze dal pannello dettaglio del task
-- [ ] Se si tenta di spostare un task bloccato in "In Progress", il sistema mostra un messaggio con l'elenco dei task bloccanti ancora non completati
+- [x] Ogni task puo avere una lista di task bloccanti; nella board, i task bloccati mostrano un indicatore visuale (es. icona lucchetto) e non possono essere spostati in "In Progress" finche i task bloccanti non sono in stato "Done"
+- [x] Dalla dashboard, l'utente puo aggiungere o rimuovere dipendenze dal pannello dettaglio del task
+- [x] Se si tenta di spostare un task bloccato in "In Progress", il sistema mostra un messaggio con l'elenco dei task bloccanti ancora non completati
+
+**Status: DONE**
 
 ---
 

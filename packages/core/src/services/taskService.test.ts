@@ -427,4 +427,238 @@ describe('TaskService', () => {
     expect(inProgress1.position).toBe(1);
     expect(backlog2.position).toBe(2);
   });
+
+  describe('dipendenze tra task', () => {
+    describe('addDependency', () => {
+      it('aggiunge una dipendenza tra due task', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const blockingTask = taskService.createTask({ title: 'Task bloccante' });
+        const blockedTask = taskService.createTask({ title: 'Task bloccato' });
+
+        taskService.addDependency(blockingTask.id, blockedTask.id);
+
+        const blockers = taskService.getBlockingTasks(blockedTask.id);
+        expect(blockers).toHaveLength(1);
+        expect(blockers[0].id).toBe(blockingTask.id);
+      });
+
+      it('lancia errore per auto-dipendenza', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task singolo' });
+
+        expect(() => taskService.addDependency(task.id, task.id)).toThrowError(
+          /non puo bloccare se stesso/,
+        );
+      });
+
+      it('lancia errore se il task bloccante non esiste', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task esistente' });
+
+        expect(() =>
+          taskService.addDependency('00000000-0000-0000-0000-000000000000', task.id),
+        ).toThrowError(/Task bloccante non trovato/);
+      });
+
+      it('lancia errore se il task bloccato non esiste', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task esistente' });
+
+        expect(() =>
+          taskService.addDependency(task.id, '00000000-0000-0000-0000-000000000000'),
+        ).toThrowError(/Task bloccato non trovato/);
+      });
+
+      it('lancia errore per dipendenza duplicata', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const taskA = taskService.createTask({ title: 'Task A' });
+        const taskB = taskService.createTask({ title: 'Task B' });
+
+        taskService.addDependency(taskA.id, taskB.id);
+
+        expect(() => taskService.addDependency(taskA.id, taskB.id)).toThrowError(
+          /esiste gia/,
+        );
+      });
+    });
+
+    describe('removeDependency', () => {
+      it('rimuove una dipendenza esistente', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const taskA = taskService.createTask({ title: 'Task A' });
+        const taskB = taskService.createTask({ title: 'Task B' });
+
+        taskService.addDependency(taskA.id, taskB.id);
+        taskService.removeDependency(taskA.id, taskB.id);
+
+        const blockers = taskService.getBlockingTasks(taskB.id);
+        expect(blockers).toHaveLength(0);
+      });
+
+      it('lancia errore se la dipendenza non esiste', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const taskA = taskService.createTask({ title: 'Task A' });
+        const taskB = taskService.createTask({ title: 'Task B' });
+
+        expect(() => taskService.removeDependency(taskA.id, taskB.id)).toThrowError(
+          /Dipendenza non trovata/,
+        );
+      });
+    });
+
+    describe('getBlockingTasks e getBlockedTasks', () => {
+      it('restituisce i task bloccanti e bloccati correttamente', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const taskA = taskService.createTask({ title: 'Task A' });
+        const taskB = taskService.createTask({ title: 'Task B' });
+        const taskC = taskService.createTask({ title: 'Task C' });
+
+        // A blocca B, A blocca C
+        taskService.addDependency(taskA.id, taskB.id);
+        taskService.addDependency(taskA.id, taskC.id);
+
+        const blockedByA = taskService.getBlockedTasks(taskA.id);
+        expect(blockedByA).toHaveLength(2);
+        expect(blockedByA.map((t) => t.id)).toContain(taskB.id);
+        expect(blockedByA.map((t) => t.id)).toContain(taskC.id);
+
+        const blockersOfB = taskService.getBlockingTasks(taskB.id);
+        expect(blockersOfB).toHaveLength(1);
+        expect(blockersOfB[0].id).toBe(taskA.id);
+      });
+
+      it('restituisce array vuoto se non ci sono dipendenze', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task solitario' });
+
+        expect(taskService.getBlockingTasks(task.id)).toHaveLength(0);
+        expect(taskService.getBlockedTasks(task.id)).toHaveLength(0);
+      });
+    });
+
+    describe('getUncompletedBlockers e isTaskBlocked', () => {
+      it('restituisce solo i bloccanti non completati', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const taskA = taskService.createTask({ title: 'Task A' });
+        const taskB = taskService.createTask({ title: 'Task B' });
+        const taskC = taskService.createTask({ title: 'Task C' });
+
+        // A e B bloccano C
+        taskService.addDependency(taskA.id, taskC.id);
+        taskService.addDependency(taskB.id, taskC.id);
+
+        // A e completato
+        taskService.updateTask(taskA.id, { status: 'done' });
+
+        const uncompleted = taskService.getUncompletedBlockers(taskC.id);
+        expect(uncompleted).toHaveLength(1);
+        expect(uncompleted[0].id).toBe(taskB.id);
+        expect(taskService.isTaskBlocked(taskC.id)).toBe(true);
+      });
+
+      it('isTaskBlocked restituisce false se tutti i bloccanti sono done', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const taskA = taskService.createTask({ title: 'Task A' });
+        const taskB = taskService.createTask({ title: 'Task B' });
+
+        taskService.addDependency(taskA.id, taskB.id);
+        taskService.updateTask(taskA.id, { status: 'done' });
+
+        expect(taskService.isTaskBlocked(taskB.id)).toBe(false);
+      });
+
+      it('isTaskBlocked restituisce false se non ci sono dipendenze', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const task = taskService.createTask({ title: 'Task libero' });
+
+        expect(taskService.isTaskBlocked(task.id)).toBe(false);
+      });
+    });
+
+    describe('blocco spostamento in-progress', () => {
+      it('impedisce lo spostamento a in-progress se il task e bloccato', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const blockingTask = taskService.createTask({ title: 'Task bloccante' });
+        const blockedTask = taskService.createTask({ title: 'Task bloccato' });
+
+        taskService.addDependency(blockingTask.id, blockedTask.id);
+
+        expect(() =>
+          taskService.updateTask(blockedTask.id, { status: 'in-progress' }),
+        ).toThrowError(/bloccato dai seguenti task non completati/);
+      });
+
+      it('include i displayId dei bloccanti nel messaggio di errore', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const blockingTask = taskService.createTask({ title: 'Task bloccante' });
+        const blockedTask = taskService.createTask({ title: 'Task bloccato' });
+
+        taskService.addDependency(blockingTask.id, blockedTask.id);
+
+        expect(() =>
+          taskService.updateTask(blockedTask.id, { status: 'in-progress' }),
+        ).toThrowError(new RegExp(blockingTask.displayId));
+      });
+
+      it('consente lo spostamento a in-progress se tutti i bloccanti sono done', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const blockingTask = taskService.createTask({ title: 'Task bloccante' });
+        const blockedTask = taskService.createTask({ title: 'Task bloccato' });
+
+        taskService.addDependency(blockingTask.id, blockedTask.id);
+        taskService.updateTask(blockingTask.id, { status: 'done' });
+
+        const movedTask = taskService.updateTask(blockedTask.id, { status: 'in-progress' });
+        expect(movedTask.status).toBe('in-progress');
+      });
+
+      it('consente lo spostamento a done anche se il task e bloccato', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const blockingTask = taskService.createTask({ title: 'Task bloccante' });
+        const blockedTask = taskService.createTask({ title: 'Task bloccato' });
+
+        taskService.addDependency(blockingTask.id, blockedTask.id);
+
+        // Spostamento diretto a done deve essere permesso (non e in-progress)
+        const movedTask = taskService.updateTask(blockedTask.id, { status: 'done' });
+        expect(movedTask.status).toBe('done');
+      });
+
+      it('non blocca se il task e gia in-progress e viene aggiornato con altri campi', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const blockingTask = taskService.createTask({ title: 'Task bloccante', status: 'done' });
+        const blockedTask = taskService.createTask({ title: 'Task bloccato' });
+
+        taskService.addDependency(blockingTask.id, blockedTask.id);
+        taskService.updateTask(blockedTask.id, { status: 'in-progress' });
+
+        // Ora il bloccante torna a backlog, ma il task e gia in-progress
+        taskService.updateTask(blockingTask.id, { status: 'backlog' });
+
+        // Aggiornare il titolo del task gia in-progress non deve lanciare errore
+        const updatedTask = taskService.updateTask(blockedTask.id, { title: 'Nuovo titolo' });
+        expect(updatedTask.title).toBe('Nuovo titolo');
+      });
+    });
+
+    describe('cascade delete', () => {
+      it('rimuove le dipendenze quando un task viene eliminato', () => {
+        const { taskService } = createTemporaryProjectWithDatabase();
+        const taskA = taskService.createTask({ title: 'Task A' });
+        const taskB = taskService.createTask({ title: 'Task B' });
+        const taskC = taskService.createTask({ title: 'Task C' });
+
+        // A blocca B, B blocca C
+        taskService.addDependency(taskA.id, taskB.id);
+        taskService.addDependency(taskB.id, taskC.id);
+
+        // Eliminare B rimuove entrambe le dipendenze
+        taskService.deleteTask(taskB.id);
+
+        expect(taskService.getBlockingTasks(taskB.id)).toHaveLength(0);
+        expect(taskService.getBlockedTasks(taskA.id)).toHaveLength(0);
+        expect(taskService.getBlockingTasks(taskC.id)).toHaveLength(0);
+      });
+    });
+  });
 });

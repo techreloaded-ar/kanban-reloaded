@@ -9,6 +9,7 @@ interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
   colorClass: string;
+  blockedTaskIds?: Set<string>;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
   onTaskClick?: (task: Task) => void;
@@ -21,7 +22,7 @@ const EMPTY_STATE_MESSAGES: Record<TaskStatus, string> = {
   done: 'Nessun task completato',
 };
 
-export function KanbanColumn({ title, status, tasks, colorClass, onDeleteTask, onUpdatePriority, onTaskClick, onCreateTask }: KanbanColumnProps) {
+export function KanbanColumn({ title, status, tasks, colorClass, blockedTaskIds, onDeleteTask, onUpdatePriority, onTaskClick, onCreateTask }: KanbanColumnProps) {
   return (
     <Droppable droppableId={status}>
       {(provided, snapshot) => (
@@ -62,6 +63,7 @@ export function KanbanColumn({ title, status, tasks, colorClass, onDeleteTask, o
                   key={task.id}
                   task={task}
                   index={index}
+                  isBlocked={blockedTaskIds?.has(task.id)}
                   onDeleteTask={onDeleteTask}
                   onUpdatePriority={onUpdatePriority}
                   onTaskClick={onTaskClick}

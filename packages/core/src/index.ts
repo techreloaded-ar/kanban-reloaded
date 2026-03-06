@@ -1,7 +1,7 @@
 // @kanban-reloaded/core — Entry point
 
 // Schema (tabelle Drizzle)
-export { tasksTable, configTable } from './models/schema.js';
+export { tasksTable, taskDependenciesTable, configTable } from './models/schema.js';
 
 // Tipi TypeScript
 export type {
@@ -10,6 +10,8 @@ export type {
   TaskPriority,
   CreateTaskInput,
   UpdateTaskInput,
+  TaskDependency,
+  TaskWithDependencies,
   AgentConfiguration,
   ColumnConfiguration,
   ProjectConfiguration,

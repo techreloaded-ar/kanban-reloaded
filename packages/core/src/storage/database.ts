@@ -31,6 +31,14 @@ const CREATE_CONFIG_TABLE_SQL = `
   )
 `;
 
+const CREATE_TASK_DEPENDENCIES_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS task_dependencies (
+    blocking_task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    blocked_task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    PRIMARY KEY (blocking_task_id, blocked_task_id)
+  )
+`;
+
 export type DatabaseInstance = BetterSQLite3Database<typeof schema>;
 
 /**
@@ -109,6 +117,7 @@ export function initializeDatabase(projectDirectoryPath: string): DatabaseInitia
   // Crea le tabelle se non esistono (non sovrascrive dati esistenti)
   sqliteConnection.exec(CREATE_TASKS_TABLE_SQL);
   sqliteConnection.exec(CREATE_CONFIG_TABLE_SQL);
+  sqliteConnection.exec(CREATE_TASK_DEPENDENCIES_TABLE_SQL);
 
   // Migrazione: aggiunge la colonna 'agent' se non esiste (US-016: supporto agent multipli)
   applyMigrations(sqliteConnection);

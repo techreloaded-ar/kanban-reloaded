@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey } from 'drizzle-orm/sqlite-core';
 
 export const tasksTable = sqliteTable('tasks', {
   id: text('id').primaryKey(),
@@ -16,6 +16,13 @@ export const tasksTable = sqliteTable('tasks', {
   executionTime: real('execution_time'),
   position: real('position').notNull().default(0),
 });
+
+export const taskDependenciesTable = sqliteTable('task_dependencies', {
+  blockingTaskId: text('blocking_task_id').notNull().references(() => tasksTable.id, { onDelete: 'cascade' }),
+  blockedTaskId: text('blocked_task_id').notNull().references(() => tasksTable.id, { onDelete: 'cascade' }),
+}, (table) => [
+  primaryKey({ columns: [table.blockingTaskId, table.blockedTaskId] }),
+]);
 
 export const configTable = sqliteTable('config', {
   key: text('key').primaryKey(),

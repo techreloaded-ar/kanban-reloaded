@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AnimatePresence } from 'motion/react';
 import type { Task, TaskPriority, TaskStatus } from './types.js';
-import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks } from './api/taskApi.js';
+import { getAllTasks, createTask, updateTask, deleteTask, reorderTasks, getTaskDependencies } from './api/taskApi.js';
 import { useWebSocket } from './hooks/useWebSocket.js';
 import { KanbanBoard } from './components/KanbanBoard.js';
 import { CreateTaskModal } from './components/CreateTaskModal.js';
@@ -25,6 +25,7 @@ export function App() {
   const [currentView, setCurrentView] = useState<'board' | 'settings'>('board');
   const [isDarkMode, setIsDarkMode] = useState(getInitialDarkMode);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
 
   // Derive selectedTask from tasks list — avoids stale state and infinite re-render loops
   const selectedTask = useMemo(() => {
@@ -37,16 +38,34 @@ export function App() {
     localStorage.setItem('kanban-reloaded-dark-mode', String(isDarkMode));
   }, [isDarkMode]);
 
+  const refreshBlockedTaskIds = useCallback(async (taskList: Task[]) => {
+    const blocked = new Set<string>();
+    // Fetch dependencies for each task in parallel; if an endpoint fails, skip silently
+    const dependencyResults = await Promise.allSettled(
+      taskList.map(async (task) => {
+        const dependencies = await getTaskDependencies(task.id);
+        return { taskId: task.id, blockingTasks: dependencies.blockingTasks };
+      })
+    );
+    for (const result of dependencyResults) {
+      if (result.status === 'fulfilled' && result.value.blockingTasks.length > 0) {
+        blocked.add(result.value.taskId);
+      }
+    }
+    setBlockedTaskIds(blocked);
+  }, []);
+
   const fetchTasks = useCallback(async () => {
     try {
       const loadedTasks = await getAllTasks();
       setTasks(loadedTasks);
       setLoadingError(null);
+      void refreshBlockedTaskIds(loadedTasks);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Errore sconosciuto';
       setLoadingError(message);
     }
-  }, []);
+  }, [refreshBlockedTaskIds]);
 
   useEffect(() => {
     void fetchTasks();
@@ -125,13 +144,9 @@ export function App() {
   }, [tasks, fetchTasks]);
 
   const handleMoveTaskFromPanel = useCallback(async (taskId: string, newStatus: TaskStatus) => {
-    try {
-      await updateTask(taskId, { status: newStatus });
-      await fetchTasks();
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Errore sconosciuto';
-      console.error(`Errore nello spostamento del task: ${message}`);
-    }
+    // Propagate the error so TaskDetailPanel can display blocking messages
+    await updateTask(taskId, { status: newStatus });
+    await fetchTasks();
   }, [fetchTasks]);
 
   const handleReorderTasks = useCallback(async (taskIds: string[], status: TaskStatus) => {
@@ -163,6 +178,10 @@ export function App() {
   const handleCloseDetailPanel = useCallback(() => {
     setSelectedTaskId(null);
   }, []);
+
+  const handleDependenciesChanged = useCallback(() => {
+    void refreshBlockedTaskIds(tasks);
+  }, [refreshBlockedTaskIds, tasks]);
 
   const handleToggleTheme = useCallback(() => {
     setIsDarkMode(previous => !previous);
@@ -201,6 +220,7 @@ export function App() {
           ) : currentView === 'board' ? (
             <KanbanBoard
               tasks={tasks}
+              blockedTaskIds={blockedTaskIds}
               onCreateTask={() => setIsCreateModalOpen(true)}
               onDeleteTask={(taskId) => void handleDeleteTask(taskId)}
               onUpdatePriority={(taskId, priority) => void handleUpdatePriority(taskId, priority)}
@@ -229,9 +249,11 @@ export function App() {
           <TaskDetailPanel
             key="task-detail-panel"
             task={selectedTask}
+            allTasks={tasks}
             onClose={handleCloseDetailPanel}
             onDelete={(taskId) => void handleDeleteTask(taskId)}
             onMoveTask={handleMoveTaskFromPanel}
+            onDependenciesChanged={handleDependenciesChanged}
           />
         )}
       </AnimatePresence>

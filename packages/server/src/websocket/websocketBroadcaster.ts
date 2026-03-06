@@ -11,7 +11,9 @@ export type TaskWebSocketEventType =
   | 'task:created'
   | 'task:updated'
   | 'task:deleted'
-  | 'task:reordered';
+  | 'task:reordered'
+  | 'task:dependency-added'
+  | 'task:dependency-removed';
 
 /**
  * Tipi di eventi WebSocket per il ciclo di vita degli agent AI.
@@ -51,11 +53,21 @@ export interface AgentCompletedPayload {
 }
 
 /**
+ * Payload per gli eventi di dipendenza tra task.
+ */
+export interface DependencyChangedPayload {
+  blockingTaskId: string;
+  blockedTaskId: string;
+}
+
+/**
  * Payload specifico per ogni tipo di evento WebSocket.
  *
  * - task:created / task:updated: il task completo
  * - task:deleted: oggetto con l'id del task rimosso
  * - task:reordered: array di task riordinati
+ * - task:dependency-added: una dipendenza tra task e stata aggiunta
+ * - task:dependency-removed: una dipendenza tra task e stata rimossa
  * - agent:started: un agent e stato avviato
  * - agent:output: chunk di output dall'agent
  * - agent:completed: il processo agent e terminato
@@ -65,6 +77,8 @@ export type WebSocketEventPayload =
   | { type: 'task:updated'; payload: Task }
   | { type: 'task:deleted'; payload: { id: string } }
   | { type: 'task:reordered'; payload: Task[] }
+  | { type: 'task:dependency-added'; payload: DependencyChangedPayload }
+  | { type: 'task:dependency-removed'; payload: DependencyChangedPayload }
   | { type: 'agent:started'; payload: AgentStartedPayload }
   | { type: 'agent:output'; payload: AgentOutputPayload }
   | { type: 'agent:completed'; payload: AgentCompletedPayload };
@@ -77,7 +91,9 @@ export type TaskWebSocketEventPayload =
   | { type: 'task:created'; payload: Task }
   | { type: 'task:updated'; payload: Task }
   | { type: 'task:deleted'; payload: { id: string } }
-  | { type: 'task:reordered'; payload: Task[] };
+  | { type: 'task:reordered'; payload: Task[] }
+  | { type: 'task:dependency-added'; payload: DependencyChangedPayload }
+  | { type: 'task:dependency-removed'; payload: DependencyChangedPayload };
 
 /**
  * Messaggio WebSocket completo inviato ai client connessi.

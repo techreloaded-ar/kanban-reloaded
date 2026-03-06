@@ -43,6 +43,15 @@ interface DeleteTaskQuerystring {
   force?: string;
 }
 
+interface DependencyRouteParams {
+  id: string;
+  blockingTaskId: string;
+}
+
+interface AddDependencyRequestBody {
+  blockingTaskId?: string;
+}
+
 /**
  * Registra le route REST per la gestione dei task.
  * Le route vengono chiuse sul taskService passato tramite closure.
@@ -249,6 +258,9 @@ export function registerTaskRoutes(
         if (error instanceof Error && error.message.includes('Task non trovato')) {
           return reply.status(404).send({ error: error.message });
         }
+        if (error instanceof Error && error.message.includes('bloccato')) {
+          return reply.status(409).send({ error: error.message });
+        }
         throw error;
       }
     },
@@ -294,6 +306,129 @@ export function registerTaskRoutes(
         }
 
         return reply.send(responsePayload);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Task non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  // ─── Dependency endpoints ────────────────────────────────────────────
+
+  /**
+   * GET /api/tasks/:id/dependencies
+   * Restituisce i task che bloccano e quelli bloccati dal task specificato.
+   */
+  server.get<{ Params: TaskRouteParams }>(
+    '/api/tasks/:id/dependencies',
+    async (request, reply) => {
+      const { id } = request.params;
+
+      try {
+        const blockingTasks = taskService.getBlockingTasks(id);
+        const blockedByTasks = taskService.getBlockedTasks(id);
+
+        return reply.send({ blockingTasks, blockedByTasks });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Task non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /api/tasks/:id/dependencies
+   * Aggiunge una dipendenza: il task :id viene bloccato dal blockingTaskId nel body.
+   */
+  server.post<{ Params: TaskRouteParams; Body: AddDependencyRequestBody }>(
+    '/api/tasks/:id/dependencies',
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body as AddDependencyRequestBody | null;
+
+      if (!body || typeof body.blockingTaskId !== 'string' || body.blockingTaskId.trim().length === 0) {
+        return reply.status(400).send({
+          error: 'Il campo blockingTaskId e obbligatorio e deve essere una stringa non vuota',
+        });
+      }
+
+      try {
+        taskService.addDependency(body.blockingTaskId, id);
+
+        websocketBroadcaster.broadcastEvent({
+          type: 'task:dependency-added',
+          payload: {
+            blockingTaskId: body.blockingTaskId,
+            blockedTaskId: id,
+          },
+        });
+
+        return reply.status(201).send({
+          success: true,
+          blockingTaskId: body.blockingTaskId,
+          blockedTaskId: id,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Task non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        if (error instanceof Error) {
+          // Self-dependency, circular dependency, or duplicate dependency errors
+          return reply.status(400).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * DELETE /api/tasks/:id/dependencies/:blockingTaskId
+   * Rimuove la dipendenza tra il task bloccante e il task bloccato (:id).
+   */
+  server.delete<{ Params: DependencyRouteParams }>(
+    '/api/tasks/:id/dependencies/:blockingTaskId',
+    async (request, reply) => {
+      const { id, blockingTaskId } = request.params;
+
+      try {
+        taskService.removeDependency(blockingTaskId, id);
+
+        websocketBroadcaster.broadcastEvent({
+          type: 'task:dependency-removed',
+          payload: {
+            blockingTaskId,
+            blockedTaskId: id,
+          },
+        });
+
+        return reply.send({ success: true });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('non trovato')) {
+          return reply.status(404).send({ error: error.message });
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /api/tasks/:id/blocked
+   * Restituisce se il task e bloccato e la lista dei bloccanti non completati.
+   */
+  server.get<{ Params: TaskRouteParams }>(
+    '/api/tasks/:id/blocked',
+    async (request, reply) => {
+      const { id } = request.params;
+
+      try {
+        const isBlocked = taskService.isTaskBlocked(id);
+        const uncompletedBlockers = taskService.getUncompletedBlockers(id);
+
+        return reply.send({ isBlocked, uncompletedBlockers });
       } catch (error) {
         if (error instanceof Error && error.message.includes('Task non trovato')) {
           return reply.status(404).send({ error: error.message });

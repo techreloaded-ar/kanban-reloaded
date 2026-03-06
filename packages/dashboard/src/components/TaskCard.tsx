@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react';
 import { Badge } from './ui/badge.js';
 import type { Task, TaskPriority } from '../types.js';
 
@@ -13,6 +13,7 @@ const PRIORITY_CYCLE: Record<TaskPriority, TaskPriority> = {
 interface TaskCardProps {
   task: Task;
   index: number;
+  isBlocked?: boolean;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
   onTaskClick?: (task: Task) => void;
@@ -32,7 +33,7 @@ const PRIORITY_CLASSES: Record<TaskPriority, string> = {
 
 const DRAG_THRESHOLD_PX = 5;
 
-export function TaskCard({ task, index, onDeleteTask, onUpdatePriority, onTaskClick }: TaskCardProps) {
+export function TaskCard({ task, index, isBlocked, onDeleteTask, onUpdatePriority, onTaskClick }: TaskCardProps) {
   const mouseDownPosition = useRef<{ x: number; y: number } | null>(null);
 
   return (
@@ -66,9 +67,14 @@ export function TaskCard({ task, index, onDeleteTask, onUpdatePriority, onTaskCl
           }}
         >
           <div className="flex items-start justify-between mb-2">
-            <span className="text-xs font-mono text-muted-foreground">
-              {task.displayId}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-mono text-muted-foreground">
+                {task.displayId}
+              </span>
+              {isBlocked && (
+                <Lock className="h-3.5 w-3.5 text-destructive" aria-label="Task bloccato da dipendenze" />
+              )}
+            </div>
             {task.agentRunning && (
               <Loader2 className="h-4 w-4 text-primary animate-spin" aria-label="Agent running" />
             )}

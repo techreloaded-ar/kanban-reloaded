@@ -6,7 +6,7 @@ import { KanbanColumn } from './KanbanColumn.js';
 
 interface KanbanBoardProps {
   tasks: Task[];
-  onCreateTask: () => void;
+  onCreateTask: (status?: TaskStatus) => void;
   onDeleteTask?: (taskId: string) => void;
   onUpdatePriority?: (taskId: string, priority: TaskPriority) => void;
   onMoveTask?: (taskId: string, newStatus: TaskStatus, newPosition: number) => void;
@@ -92,7 +92,7 @@ export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriorit
           ))}
         </div>
         <button
-          onClick={onCreateTask}
+          onClick={() => onCreateTask()}
           className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90"
         >
           <svg
@@ -151,6 +151,7 @@ export function KanbanBoard({ tasks, onCreateTask, onDeleteTask, onUpdatePriorit
                 onDeleteTask={onDeleteTask}
                 onUpdatePriority={onUpdatePriority}
                 onTaskClick={onTaskClick}
+                onCreateTask={onCreateTask}
               />
             ))}
           </div>

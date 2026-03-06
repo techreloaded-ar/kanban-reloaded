@@ -1,5 +1,7 @@
 import { useRef } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
+import { Loader2 } from 'lucide-react';
+import { Badge } from './ui/badge.js';
 import type { Task, TaskPriority } from '../types.js';
 
 const PRIORITY_CYCLE: Record<TaskPriority, TaskPriority> = {
@@ -52,33 +54,50 @@ export function TaskCard({ task, index, onDeleteTask, onUpdatePriority, onTaskCl
             }
             onTaskClick?.(task);
           }}
-          className={`group relative cursor-pointer rounded-lg border border-border bg-card p-3 shadow-sm transition-colors hover:border-primary/50 hover:shadow-md ${snapshot.isDragging ? 'shadow-lg ring-2 ring-primary/20' : ''}`}
+          className={`group relative bg-card border border-border rounded-lg p-4 cursor-pointer hover:border-primary/50 hover:shadow-lg transition-all duration-200 ${snapshot.isDragging ? 'opacity-50 rotate-2 scale-105' : ''}`}
+          role="button"
+          tabIndex={0}
+          aria-label={`Task ${task.displayId}: ${task.title}`}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onTaskClick?.(task);
+            }
+          }}
         >
-          <div className="mb-2 flex items-center justify-between">
-            <span className="font-mono text-xs text-muted-foreground">
+          <div className="flex items-start justify-between mb-2">
+            <span className="text-xs font-mono text-muted-foreground">
               {task.displayId}
             </span>
-            <span
-              role="button"
-              tabIndex={0}
-              onClick={(event) => {
-                event.stopPropagation();
-                onUpdatePriority?.(task.id, PRIORITY_CYCLE[task.priority]);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.stopPropagation();
-                  event.preventDefault();
-                  onUpdatePriority?.(task.id, PRIORITY_CYCLE[task.priority]);
-                }
-              }}
-              className={`cursor-pointer rounded-full px-2 py-0.5 text-xs font-medium hover:opacity-80 ${PRIORITY_CLASSES[task.priority]}`}
-              aria-label={`Cambia priorita task ${task.displayId} da ${PRIORITY_LABELS[task.priority]}`}
-            >
-              {PRIORITY_LABELS[task.priority]}
-            </span>
+            {task.agentRunning && (
+              <Loader2 className="h-4 w-4 text-primary animate-spin" aria-label="Agent running" />
+            )}
           </div>
-          <p className="text-sm font-medium text-card-foreground">{task.title}</p>
+
+          <h3 className="font-semibold mb-2 line-clamp-2">{task.title}</h3>
+
+          <Badge
+            role="button"
+            tabIndex={0}
+            onClick={(event) => {
+              event.stopPropagation();
+              onUpdatePriority?.(task.id, PRIORITY_CYCLE[task.priority]);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.stopPropagation();
+                event.preventDefault();
+                onUpdatePriority?.(task.id, PRIORITY_CYCLE[task.priority]);
+              }
+            }}
+            className={`${PRIORITY_CLASSES[task.priority]} mb-3 cursor-pointer hover:opacity-80`}
+            aria-label={`Cambia priorita task ${task.displayId} da ${PRIORITY_LABELS[task.priority]}`}
+          >
+            {PRIORITY_LABELS[task.priority]}
+          </Badge>
+
+          <p className="text-sm text-muted-foreground line-clamp-2">{task.description}</p>
+
           {onDeleteTask && (
             <button
               onClick={(event) => {

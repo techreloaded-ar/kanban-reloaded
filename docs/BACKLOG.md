@@ -325,10 +325,12 @@ I want che le colonne della board e le task card siano visivamente identiche al 
 so that la dashboard abbia un aspetto curato e coerente con il design system definito.
 
 **Acceptance Criteria**
-- [ ] Le colonne della board hanno bordo, header separato con separatore orizzontale, pallino colorato, contatore task e bottone "+" per aggiungere task direttamente nella colonna, come nel mockup (`docs/mockup/src/app/components/KanbanColumn.tsx`)
-- [ ] Le task card mostrano displayId, titolo, badge priorita e descrizione troncata a 2 righe, con effetto hover (bordo primary, ombra), come nel mockup (`docs/mockup/src/app/components/TaskCard.tsx`)
-- [ ] Le animazioni di ingresso della board (fade-in + slide-up) e del drag-and-drop (ombra, rotazione leggera, scala) replicano quelle del mockup
-- [ ] I componenti utilizzano esclusivamente le variabili CSS del design system definite in `theme.css`, senza colori hardcoded
+- [x] Le colonne della board hanno bordo, header separato con separatore orizzontale, pallino colorato, contatore task e bottone "+" per aggiungere task direttamente nella colonna, come nel mockup (`docs/mockup/src/app/components/KanbanColumn.tsx`)
+- [x] Le task card mostrano displayId, titolo, badge priorita e descrizione troncata a 2 righe, con effetto hover (bordo primary, ombra), come nel mockup (`docs/mockup/src/app/components/TaskCard.tsx`)
+- [x] Le animazioni di ingresso della board (fade-in + slide-up) e del drag-and-drop (ombra, rotazione leggera, scala) replicano quelle del mockup
+- [x] I componenti utilizzano esclusivamente le variabili CSS del design system definite in `theme.css`, senza colori hardcoded
+
+**Status: DONE**
 
 ---
 

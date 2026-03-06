@@ -139,7 +139,6 @@ export function App() {
 
   const handleWebSocketAgentEvent = useCallback((event: WebSocketAgentEvent) => {
     const { type, payload } = event;
-
     if (type === 'agent:started') {
       // Resetta output live e marca l'agent come running
       setAgentLiveOutputMap(previousMap => {
@@ -161,18 +160,33 @@ export function App() {
         return updatedMap;
       });
     } else if (type === 'agent:completed') {
-      // Pulisci live output — il prossimo task:updated portera il log finale
+      // Trasferisci il live output accumulato in task.agentLog per feedback
+      // immediato, poi rimuovi dalla mappa live. Il successivo task:updated
+      // dal server portera lo stato definitivo dal database.
       setAgentLiveOutputMap(previousMap => {
+        const accumulatedOutput = previousMap.get(payload.taskId) ?? null;
         const updatedMap = new Map(previousMap);
         updatedMap.delete(payload.taskId);
+
+        // Salva l'output accumulato in agentLog cosi il pannello non scompare
+        if (accumulatedOutput !== null) {
+          setTasks(currentTasks =>
+            currentTasks.map(task =>
+              task.id === payload.taskId
+                ? { ...task, agentRunning: false, agentLog: accumulatedOutput }
+                : task
+            )
+          );
+        } else {
+          setTasks(currentTasks =>
+            currentTasks.map(task =>
+              task.id === payload.taskId ? { ...task, agentRunning: false } : task
+            )
+          );
+        }
+
         return updatedMap;
       });
-      // Aggiorna lo stato dell'agent localmente per feedback immediato
-      setTasks(currentTasks =>
-        currentTasks.map(task =>
-          task.id === payload.taskId ? { ...task, agentRunning: false } : task
-        )
-      );
     }
   }, []);
 

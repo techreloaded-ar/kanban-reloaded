@@ -5,6 +5,7 @@ import type { ChildProcess } from 'node:child_process';
 import type { Task, TaskService } from '@kanban-reloaded/core';
 import type { ConfigService, AgentService } from '@kanban-reloaded/core';
 import type { WebSocketBroadcaster, WebSocketEventPayload } from '../websocket/websocketBroadcaster.js';
+import { ClaudeStreamJsonParser, formatStreamFragmentForDisplay } from './claudeStreamJsonParser.js';
 
 /**
  * Risultato del tentativo di lancio di un agent per un task.
@@ -435,31 +436,73 @@ export class AgentLauncher {
 
   /**
    * Configura lo streaming dell'output (stdout e stderr) del processo agent.
-   * Ogni chunk viene accumulato nell'agentLog del task e trasmesso via WebSocket.
+   *
+   * L'output viene processato attraverso un ClaudeStreamJsonParser che:
+   * - Se il comando produce NDJSON (es. `--output-format stream-json`),
+   *   estrae il testo leggibile (risposta e ragionamento) dal flusso JSON
+   * - Se il comando produce plain text, lo passa cosi com'e
+   *
+   * Ogni frammento leggibile viene accumulato nell'agentLog del task
+   * e trasmesso via WebSocket ai client connessi.
    */
   private setupOutputStreaming(childProcess: ChildProcess, task: Task): void {
-    let accumulatedOutput = '';
+    let accumulatedDisplayOutput = '';
+    const streamParser = new ClaudeStreamJsonParser();
 
     const handleOutputChunk = (chunk: Buffer): void => {
       const textChunk = chunk.toString('utf-8');
-      accumulatedOutput += textChunk;
+      const parsedFragments = streamParser.processChunk(textChunk);
 
-      // Aggiorna l'agentLog nel database periodicamente
-      this.updateTaskAgentLog(task.id, accumulatedOutput);
+      for (const fragment of parsedFragments) {
+        const displayText = formatStreamFragmentForDisplay(fragment);
+        if (displayText.length === 0) continue;
 
-      // Broadcast l'output in tempo reale
-      this.broadcastAgentEvent({
-        type: 'agent:output',
-        payload: {
-          taskId: task.id,
-          displayId: task.displayId,
-          output: textChunk,
-        },
-      });
+        accumulatedDisplayOutput += displayText;
+
+        // Broadcast il frammento leggibile in tempo reale
+        this.broadcastAgentEvent({
+          type: 'agent:output',
+          payload: {
+            taskId: task.id,
+            displayId: task.displayId,
+            output: displayText,
+          },
+        });
+      }
+
+      // Aggiorna l'agentLog nel database con tutto l'output accumulato
+      if (parsedFragments.length > 0) {
+        this.updateTaskAgentLog(task.id, accumulatedDisplayOutput);
+      }
+    };
+
+    // Al termine del processo, svuota il buffer del parser
+    // per non perdere l'ultima riga (senza newline finale)
+    const flushParserOnClose = (): void => {
+      const remainingFragments = streamParser.flush();
+      for (const fragment of remainingFragments) {
+        const displayText = formatStreamFragmentForDisplay(fragment);
+        if (displayText.length === 0) continue;
+
+        accumulatedDisplayOutput += displayText;
+        this.broadcastAgentEvent({
+          type: 'agent:output',
+          payload: {
+            taskId: task.id,
+            displayId: task.displayId,
+            output: displayText,
+          },
+        });
+      }
+
+      if (remainingFragments.length > 0) {
+        this.updateTaskAgentLog(task.id, accumulatedDisplayOutput);
+      }
     };
 
     childProcess.stdout?.on('data', handleOutputChunk);
     childProcess.stderr?.on('data', handleOutputChunk);
+    childProcess.on('close', flushParserOnClose);
   }
 
   /**
@@ -545,6 +588,18 @@ export class AgentLauncher {
       }
 
       this.taskService.updateTask(taskId, updatePayload);
+
+      // Broadcast task:updated con lo stato finale del task (incluso agentLog,
+      // executionTime, status) cosi il frontend sincronizza lo stato completo.
+      // Senza questo broadcast, il frontend non riceve mai l'agentLog salvato
+      // nel database durante lo streaming.
+      const updatedTask = this.taskService.getTaskById(taskId);
+      if (updatedTask) {
+        this.broadcastAgentEvent({
+          type: 'task:updated',
+          payload: updatedTask,
+        });
+      }
     } catch (updateError: unknown) {
       const message =
         updateError instanceof Error

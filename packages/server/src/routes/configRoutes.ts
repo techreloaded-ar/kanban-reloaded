@@ -8,6 +8,23 @@ interface UpdateConfigurationRequestBody {
   serverPort?: number;
   columns?: unknown[];
   workingDirectory?: string | null;
+  agentEnvironmentVariables?: Record<string, unknown>;
+}
+
+const MASKED_VALUE = '****';
+
+/**
+ * Maschera i valori delle variabili d'ambiente per sicurezza.
+ * I nomi delle chiavi sono visibili, ma i valori vengono sostituiti con asterischi.
+ */
+function maskEnvironmentVariableValues(
+  environmentVariables: Record<string, string>,
+): Record<string, string> {
+  const masked: Record<string, string> = {};
+  for (const key of Object.keys(environmentVariables)) {
+    masked[key] = MASKED_VALUE;
+  }
+  return masked;
 }
 
 /**
@@ -41,7 +58,14 @@ export function registerConfigRoutes(
   server.get('/api/config', async (_request, reply) => {
     try {
       const projectConfiguration = configService.loadConfiguration();
-      return reply.send(projectConfiguration);
+      // Maschera i valori delle variabili d'ambiente per sicurezza
+      const responseConfiguration = {
+        ...projectConfiguration,
+        agentEnvironmentVariables: maskEnvironmentVariableValues(
+          projectConfiguration.agentEnvironmentVariables,
+        ),
+      };
+      return reply.send(responseConfiguration);
     } catch (error) {
       const errorMessage =
         error instanceof Error
@@ -164,6 +188,30 @@ export function registerConfigRoutes(
         });
       }
 
+      // Validazione di agentEnvironmentVariables: deve essere un oggetto con valori stringa
+      if (body.agentEnvironmentVariables !== undefined) {
+        if (
+          typeof body.agentEnvironmentVariables !== 'object' ||
+          body.agentEnvironmentVariables === null ||
+          Array.isArray(body.agentEnvironmentVariables)
+        ) {
+          return reply.status(400).send({
+            error:
+              "Il campo 'agentEnvironmentVariables' deve essere un oggetto (mappa chiave -> valore stringa)",
+          });
+        }
+
+        for (const [envKey, envValue] of Object.entries(
+          body.agentEnvironmentVariables,
+        )) {
+          if (typeof envValue !== 'string') {
+            return reply.status(400).send({
+              error: `Il valore della variabile d'ambiente '${envKey}' deve essere una stringa, ricevuto ${typeof envValue}`,
+            });
+          }
+        }
+      }
+
       // Costruisci l'oggetto di aggiornamento parziale con solo i campi forniti
       const updatedFields: Partial<ProjectConfiguration> = {};
 
@@ -182,11 +230,21 @@ export function registerConfigRoutes(
       if (body.workingDirectory !== undefined) {
         updatedFields.workingDirectory = body.workingDirectory;
       }
+      if (body.agentEnvironmentVariables !== undefined) {
+        updatedFields.agentEnvironmentVariables = body.agentEnvironmentVariables as Record<string, string>;
+      }
 
       try {
         const updatedConfiguration =
           configService.saveConfiguration(updatedFields);
-        return reply.send(updatedConfiguration);
+        // Maschera i valori delle variabili d'ambiente nella risposta
+        const responseConfiguration = {
+          ...updatedConfiguration,
+          agentEnvironmentVariables: maskEnvironmentVariableValues(
+            updatedConfiguration.agentEnvironmentVariables,
+          ),
+        };
+        return reply.send(responseConfiguration);
       } catch (error) {
         const errorMessage =
           error instanceof Error

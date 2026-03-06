@@ -15,6 +15,7 @@ const DEFAULT_CONFIGURATION: ProjectConfiguration = {
   serverPort: 3000,
   columns: DEFAULT_COLUMNS,
   workingDirectory: null,
+  agentEnvironmentVariables: {},
 };
 
 /**
@@ -245,6 +246,23 @@ export class ConfigService {
       }
     }
 
+    // Valida agentEnvironmentVariables
+    if ('agentEnvironmentVariables' in configObject) {
+      if (typeof configObject['agentEnvironmentVariables'] !== 'object' || configObject['agentEnvironmentVariables'] === null || Array.isArray(configObject['agentEnvironmentVariables'])) {
+        throw new Error(
+          `Errore di validazione in ${configFilePath}: il campo 'agentEnvironmentVariables' deve essere un oggetto (mappa chiave -> valore stringa)`,
+        );
+      }
+      const envVarsMap = configObject['agentEnvironmentVariables'] as Record<string, unknown>;
+      for (const [envKey, envValue] of Object.entries(envVarsMap)) {
+        if (typeof envValue !== 'string') {
+          throw new Error(
+            `Errore di validazione in ${configFilePath}: il valore della variabile d'ambiente '${envKey}' deve essere una stringa, ricevuto ${typeof envValue}`,
+          );
+        }
+      }
+    }
+
     // Costruisci la configurazione validata con fallback ai valori predefiniti
     const validatedConfiguration: ProjectConfiguration = {
       agentCommand: 'agentCommand' in configObject
@@ -262,6 +280,9 @@ export class ConfigService {
       workingDirectory: 'workingDirectory' in configObject
         ? (configObject['workingDirectory'] as string | null)
         : DEFAULT_CONFIGURATION.workingDirectory,
+      agentEnvironmentVariables: 'agentEnvironmentVariables' in configObject
+        ? (configObject['agentEnvironmentVariables'] as Record<string, string>)
+        : { ...DEFAULT_CONFIGURATION.agentEnvironmentVariables },
     };
 
     return validatedConfiguration;

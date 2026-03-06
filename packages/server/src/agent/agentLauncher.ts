@@ -63,6 +63,7 @@ export class AgentLauncher {
   private readonly agentStartTimestamps: Map<string, number> = new Map();
   private readonly projectDirectoryPath: string;
   private readonly globalWorkingDirectory: string | null;
+  private readonly agentEnvironmentVariables: Record<string, string>;
 
   /**
    * Dipendenze iniettate dopo la costruzione, poiche il server le crea
@@ -77,12 +78,14 @@ export class AgentLauncher {
     agentConfigurationMap: AgentConfiguration = {},
     projectDirectoryPath: string = process.cwd(),
     globalWorkingDirectory: string | null = null,
+    agentEnvironmentVariables: Record<string, string> = {},
   ) {
     this.defaultAgentCommand = defaultAgentCommand;
     this.agentConfigurationMap = agentConfigurationMap;
     this.logger = logger;
     this.projectDirectoryPath = projectDirectoryPath;
     this.globalWorkingDirectory = globalWorkingDirectory;
+    this.agentEnvironmentVariables = agentEnvironmentVariables;
   }
 
   /**
@@ -152,11 +155,18 @@ export class AgentLauncher {
     const [executable, ...commandArguments] = commandParts;
 
     try {
+      // Merge le variabili d'ambiente configurate con quelle del processo padre.
+      // Le variabili configurate sovrascrivono quelle con lo stesso nome nel processo padre.
+      const mergedEnvironment = Object.keys(this.agentEnvironmentVariables).length > 0
+        ? { ...process.env, ...this.agentEnvironmentVariables }
+        : undefined; // undefined = eredita process.env (default di spawn)
+
       const childProcess = spawn(executable, commandArguments, {
         shell: false,
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
         cwd: resolvedWorkingDirectory,
+        env: mergedEnvironment,
       });
 
       if (childProcess.pid === undefined) {

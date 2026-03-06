@@ -106,6 +106,7 @@ export interface ProjectConfiguration {
   serverPort: number;
   columns: ColumnConfiguration[];
   workingDirectory: string | null;
+  agentEnvironmentVariables: Record<string, string>;
 }
 
 export interface ConfigurationFileError {

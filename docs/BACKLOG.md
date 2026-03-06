@@ -850,7 +850,7 @@ so that gli agent operino nella directory corretta del progetto e possano accede
 
 ---
 
-#### US-043: Variabili d'ambiente per agent
+#### US-043: Variabili d'ambiente per agent — **Status: DONE**
 
 **Epic:** EP-009 | **Priority:** LOW | **Story Points:** 3
 **Depends on:** US-039, US-042
@@ -861,10 +861,10 @@ I want configurare variabili d'ambiente aggiuntive per i processi agent,
 so that posso passare API key, token e percorsi personalizzati senza esporli nel comando visibile.
 
 **Acceptance Criteria**
-- [ ] Il file di configurazione supporta un campo opzionale `agentEnvironmentVariables` (oggetto chiave-valore) che viene passato ai processi agent come variabili d'ambiente aggiuntive
-- [ ] Le variabili d'ambiente configurate si sommano a quelle del processo padre (non le sovrascrivono, a meno che non abbiano lo stesso nome)
-- [ ] La pagina Impostazioni permette di aggiungere, modificare e rimuovere variabili d'ambiente; i valori sono mascherati (mostrati come `****`) dopo il salvataggio per sicurezza
-- [ ] Le variabili d'ambiente non vengono mai incluse nei log dell'agent o nelle risposte API
+- [x] Il file di configurazione supporta un campo opzionale `agentEnvironmentVariables` (oggetto chiave-valore) che viene passato ai processi agent come variabili d'ambiente aggiuntive
+- [x] Le variabili d'ambiente configurate si sommano a quelle del processo padre (non le sovrascrivono, a meno che non abbiano lo stesso nome)
+- [x] La pagina Impostazioni permette di aggiungere, modificare e rimuovere variabili d'ambiente; i valori sono mascherati (mostrati come `****`) dopo il salvataggio per sicurezza
+- [x] Le variabili d'ambiente non vengono mai incluse nei log dell'agent o nelle risposte API
 
 ---
 

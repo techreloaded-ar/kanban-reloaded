@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Save, Plus, Trash2, Terminal, Info } from "lucide-react";
+import { Save, Plus, Trash2, Terminal, Info, Eye, EyeOff } from "lucide-react";
 import { Button } from "./ui/button.js";
 import { Input } from "./ui/input.js";
 import { Badge } from "./ui/badge.js";
@@ -10,6 +10,12 @@ interface AgentEntry {
   name: string;
   commandTemplate: string;
   workingDirectory: string;
+}
+
+interface EnvironmentVariableEntry {
+  key: string;
+  value: string;
+  isMasked: boolean; // true if loaded from server (value is "****")
 }
 
 const PLACEHOLDER_HELP_TEXT = "Placeholder disponibili: {{title}}, {{description}}, {{acceptanceCriteria}}";
@@ -41,6 +47,8 @@ export function SettingsPage() {
   const [serverPort, setServerPort] = useState("");
   const [globalWorkingDirectory, setGlobalWorkingDirectory] = useState("");
   const [agentEntries, setAgentEntries] = useState<AgentEntry[]>([]);
+  const [environmentVariableEntries, setEnvironmentVariableEntries] = useState<EnvironmentVariableEntry[]>([]);
+  const [showEnvValues, setShowEnvValues] = useState(false);
 
   const loadConfiguration = useCallback(async () => {
     try {
@@ -56,6 +64,14 @@ export function SettingsPage() {
           workingDirectory: typeof agentValue === 'string' ? '' : (agentValue.workingDirectory ?? ''),
         }))
       );
+      setEnvironmentVariableEntries(
+        Object.entries(loadedConfig.agentEnvironmentVariables).map(([key, value]) => ({
+          key,
+          value,
+          isMasked: value === '****',
+        }))
+      );
+      setShowEnvValues(false);
       setLoadingError(null);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Errore sconosciuto";
@@ -88,12 +104,31 @@ export function SettingsPage() {
         }
       }
 
-      const updatedConfig = await updateConfiguration({
+      // Build env vars map: only include entries that have actual values (not masked)
+      const envVarsMap: Record<string, string> = {};
+      const hasModifiedEnvVars = environmentVariableEntries.some(entry => !entry.isMasked);
+      if (hasModifiedEnvVars) {
+        for (const entry of environmentVariableEntries) {
+          const trimmedKey = entry.key.trim();
+          if (trimmedKey && !entry.isMasked && entry.value.trim()) {
+            envVarsMap[trimmedKey] = entry.value;
+          }
+        }
+      }
+
+      const updatePayload: Partial<ProjectConfiguration> = {
         agentCommand: defaultAgentCommand.trim() || null,
         agents: agentsMap,
         serverPort: parseInt(serverPort, 10) || 3000,
         workingDirectory: globalWorkingDirectory.trim() || null,
-      });
+      };
+
+      // Only send env vars if modified (to avoid overwriting with masked values)
+      if (hasModifiedEnvVars || environmentVariableEntries.length === 0) {
+        updatePayload.agentEnvironmentVariables = envVarsMap;
+      }
+
+      const updatedConfig = await updateConfiguration(updatePayload);
 
       setConfiguration(updatedConfig);
       setSaveSuccess(true);
@@ -134,6 +169,30 @@ export function SettingsPage() {
     setAgentEntries(previous =>
       previous.map((entry, entryIndex) =>
         entryIndex === index ? { ...entry, workingDirectory: newWorkingDirectory } : entry
+      )
+    );
+  }, []);
+
+  const handleAddEnvironmentVariable = useCallback(() => {
+    setEnvironmentVariableEntries(previous => [...previous, { key: "", value: "", isMasked: false }]);
+  }, []);
+
+  const handleRemoveEnvironmentVariable = useCallback((indexToRemove: number) => {
+    setEnvironmentVariableEntries(previous => previous.filter((_, index) => index !== indexToRemove));
+  }, []);
+
+  const handleUpdateEnvVarKey = useCallback((index: number, newKey: string) => {
+    setEnvironmentVariableEntries(previous =>
+      previous.map((entry, entryIndex) =>
+        entryIndex === index ? { ...entry, key: newKey } : entry
+      )
+    );
+  }, []);
+
+  const handleUpdateEnvVarValue = useCallback((index: number, newValue: string) => {
+    setEnvironmentVariableEntries(previous =>
+      previous.map((entry, entryIndex) =>
+        entryIndex === index ? { ...entry, value: newValue, isMasked: false } : entry
       )
     );
   }, []);
@@ -336,6 +395,79 @@ export function SettingsPage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* Variabili d'Ambiente */}
+      <section className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Variabili d&apos;Ambiente</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Variabili d&apos;ambiente aggiuntive passate ai processi agent. Utili per API key e token.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowEnvValues(previous => !previous)}
+              aria-label={showEnvValues ? "Nascondi valori" : "Mostra valori"}
+            >
+              {showEnvValues ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleAddEnvironmentVariable}>
+              <Plus className="h-4 w-4 mr-1" />
+              Aggiungi
+            </Button>
+          </div>
+        </div>
+
+        {environmentVariableEntries.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Nessuna variabile d&apos;ambiente configurata.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {environmentVariableEntries.map((entry, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2"
+              >
+                <Input
+                  value={entry.key}
+                  onChange={(event) => handleUpdateEnvVarKey(index, event.target.value)}
+                  placeholder="NOME_VARIABILE"
+                  className="flex-1 font-mono text-sm"
+                />
+                <Input
+                  type={showEnvValues && !entry.isMasked ? "text" : "password"}
+                  value={entry.value}
+                  onChange={(event) => handleUpdateEnvVarValue(index, event.target.value)}
+                  placeholder={entry.isMasked ? "****" : "valore"}
+                  className="flex-1 font-mono text-sm"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => handleRemoveEnvironmentVariable(index)}
+                  aria-label={`Rimuovi variabile ${entry.key || index + 1}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-start gap-2 rounded-md bg-muted/50 p-3">
+          <Info className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            I valori vengono mascherati dopo il salvataggio. Le variabili non vengono mai incluse nei log dell&apos;agent.
+          </p>
+        </div>
       </section>
 
       {/* Save Button & Feedback */}

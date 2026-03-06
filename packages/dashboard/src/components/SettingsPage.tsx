@@ -9,6 +9,7 @@ import type { ProjectConfiguration } from "../api/configApi.js";
 interface AgentEntry {
   name: string;
   commandTemplate: string;
+  workingDirectory: string;
 }
 
 const PLACEHOLDER_HELP_TEXT = "Placeholder disponibili: {{title}}, {{description}}, {{acceptanceCriteria}}";
@@ -38,6 +39,7 @@ export function SettingsPage() {
   // Editable form state
   const [defaultAgentCommand, setDefaultAgentCommand] = useState("");
   const [serverPort, setServerPort] = useState("");
+  const [globalWorkingDirectory, setGlobalWorkingDirectory] = useState("");
   const [agentEntries, setAgentEntries] = useState<AgentEntry[]>([]);
 
   const loadConfiguration = useCallback(async () => {
@@ -46,10 +48,12 @@ export function SettingsPage() {
       setConfiguration(loadedConfig);
       setDefaultAgentCommand(loadedConfig.agentCommand ?? "");
       setServerPort(String(loadedConfig.serverPort));
+      setGlobalWorkingDirectory(loadedConfig.workingDirectory ?? "");
       setAgentEntries(
-        Object.entries(loadedConfig.agents).map(([name, commandTemplate]) => ({
+        Object.entries(loadedConfig.agents).map(([name, agentValue]) => ({
           name,
-          commandTemplate,
+          commandTemplate: typeof agentValue === 'string' ? agentValue : agentValue.command,
+          workingDirectory: typeof agentValue === 'string' ? '' : (agentValue.workingDirectory ?? ''),
         }))
       );
       setLoadingError(null);
@@ -69,11 +73,18 @@ export function SettingsPage() {
     setSaveSuccess(false);
 
     try {
-      const agentsMap: Record<string, string> = {};
+      const agentsMap: Record<string, string | { command: string; workingDirectory?: string }> = {};
       for (const entry of agentEntries) {
         const trimmedName = entry.name.trim();
         if (trimmedName && entry.commandTemplate.trim()) {
-          agentsMap[trimmedName] = entry.commandTemplate;
+          if (entry.workingDirectory.trim()) {
+            agentsMap[trimmedName] = {
+              command: entry.commandTemplate,
+              workingDirectory: entry.workingDirectory.trim(),
+            };
+          } else {
+            agentsMap[trimmedName] = entry.commandTemplate;
+          }
         }
       }
 
@@ -81,6 +92,7 @@ export function SettingsPage() {
         agentCommand: defaultAgentCommand.trim() || null,
         agents: agentsMap,
         serverPort: parseInt(serverPort, 10) || 3000,
+        workingDirectory: globalWorkingDirectory.trim() || null,
       });
 
       setConfiguration(updatedConfig);
@@ -95,7 +107,7 @@ export function SettingsPage() {
   }, [defaultAgentCommand, serverPort, agentEntries]);
 
   const handleAddAgent = useCallback(() => {
-    setAgentEntries(previous => [...previous, { name: "", commandTemplate: "" }]);
+    setAgentEntries(previous => [...previous, { name: "", commandTemplate: "", workingDirectory: "" }]);
   }, []);
 
   const handleRemoveAgent = useCallback((indexToRemove: number) => {
@@ -114,6 +126,14 @@ export function SettingsPage() {
     setAgentEntries(previous =>
       previous.map((entry, entryIndex) =>
         entryIndex === index ? { ...entry, commandTemplate: newCommand } : entry
+      )
+    );
+  }, []);
+
+  const handleUpdateAgentWorkingDirectory = useCallback((index: number, newWorkingDirectory: string) => {
+    setAgentEntries(previous =>
+      previous.map((entry, entryIndex) =>
+        entryIndex === index ? { ...entry, workingDirectory: newWorkingDirectory } : entry
       )
     );
   }, []);
@@ -225,6 +245,21 @@ export function SettingsPage() {
         />
       </section>
 
+      {/* Directory di Lavoro */}
+      <section className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <h2 className="text-lg font-semibold">Directory di Lavoro</h2>
+        <p className="text-sm text-muted-foreground">
+          La directory in cui vengono eseguiti i processi agent. Percorso assoluto o relativo alla root del progetto.
+          Se vuoto, viene usata la directory del progetto.
+        </p>
+        <Input
+          value={globalWorkingDirectory}
+          onChange={(event) => setGlobalWorkingDirectory(event.target.value)}
+          placeholder="es. ./src oppure /home/user/project"
+          className="font-mono text-sm"
+        />
+      </section>
+
       {/* Mappa Agent */}
       <section className="rounded-lg border border-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
@@ -283,6 +318,17 @@ export function SettingsPage() {
                     value={entry.commandTemplate}
                     onChange={(event) => handleUpdateAgentCommand(index, event.target.value)}
                     placeholder="es. claude --prompt '{{title}}: {{description}}'"
+                    className="font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    Directory di Lavoro (opzionale, sovrascrive quella globale)
+                  </label>
+                  <Input
+                    value={entry.workingDirectory}
+                    onChange={(event) => handleUpdateAgentWorkingDirectory(index, event.target.value)}
+                    placeholder="es. ./src oppure /home/user/project"
                     className="font-mono text-sm"
                   />
                 </div>

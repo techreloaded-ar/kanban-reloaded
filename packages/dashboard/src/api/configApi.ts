@@ -1,7 +1,12 @@
 const API_BASE_URL = '/api';
 
+export interface AgentDetailedConfiguration {
+  command: string;
+  workingDirectory?: string;
+}
+
 export interface AgentConfiguration {
-  [agentName: string]: string;
+  [agentName: string]: string | AgentDetailedConfiguration;
 }
 
 export interface ColumnConfiguration {
@@ -15,6 +20,7 @@ export interface ProjectConfiguration {
   agents: AgentConfiguration;
   serverPort: number;
   columns: ColumnConfiguration[];
+  workingDirectory: string | null;
 }
 
 export async function getConfiguration(): Promise<ProjectConfiguration> {

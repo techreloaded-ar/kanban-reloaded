@@ -79,10 +79,20 @@ export interface SubtaskProgress {
 }
 
 /**
- * Mappa nome agent -> template comando.
- * Es. { "feature": "claude --prompt '{{title}}'", "bugfix": "aider --message '{{description}}'" }
+ * Configurazione dettagliata di un singolo agent.
+ * Il campo `command` contiene il template del comando.
+ * Il campo `workingDirectory` e opzionale e sovrascrive il valore globale.
  */
-export type AgentConfiguration = Record<string, string>;
+export interface AgentDetailedConfiguration {
+  command: string;
+  workingDirectory?: string;
+}
+
+/**
+ * Mappa nome agent -> template comando (stringa) o configurazione dettagliata.
+ * Es. { "feature": "claude --prompt '{{title}}'", "bugfix": { command: "aider ...", workingDirectory: "./src" } }
+ */
+export type AgentConfiguration = Record<string, string | AgentDetailedConfiguration>;
 
 export interface ColumnConfiguration {
   id: string;
@@ -95,6 +105,7 @@ export interface ProjectConfiguration {
   agents: AgentConfiguration;
   serverPort: number;
   columns: ColumnConfiguration[];
+  workingDirectory: string | null;
 }
 
 export interface ConfigurationFileError {

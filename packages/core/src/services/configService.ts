@@ -14,6 +14,7 @@ const DEFAULT_CONFIGURATION: ProjectConfiguration = {
   agents: {},
   serverPort: 3000,
   columns: DEFAULT_COLUMNS,
+  workingDirectory: null,
 };
 
 /**
@@ -187,21 +188,43 @@ export class ConfigService {
       );
     }
 
-    // Valida agents
+    // Valida agents (accetta sia stringhe che oggetti con campo command)
     if ('agents' in configObject) {
       if (typeof configObject['agents'] !== 'object' || configObject['agents'] === null || Array.isArray(configObject['agents'])) {
         throw new Error(
-          `Errore di validazione in ${configFilePath}: il campo 'agents' deve essere un oggetto (mappa nome agent -> template comando)`,
+          `Errore di validazione in ${configFilePath}: il campo 'agents' deve essere un oggetto (mappa nome agent -> template comando o configurazione dettagliata)`,
         );
       }
       const agentsMap = configObject['agents'] as Record<string, unknown>;
-      for (const [agentName, agentCommandTemplate] of Object.entries(agentsMap)) {
-        if (typeof agentCommandTemplate !== 'string') {
-          throw new Error(
-            `Errore di validazione in ${configFilePath}: il valore dell'agent '${agentName}' in 'agents' deve essere una stringa (template comando), ricevuto ${typeof agentCommandTemplate}`,
-          );
+      for (const [agentName, agentValue] of Object.entries(agentsMap)) {
+        if (typeof agentValue === 'string') {
+          continue; // stringa semplice (template comando) — valida
         }
+        if (typeof agentValue === 'object' && agentValue !== null && !Array.isArray(agentValue)) {
+          const detailedConfig = agentValue as Record<string, unknown>;
+          if (typeof detailedConfig['command'] !== 'string') {
+            throw new Error(
+              `Errore di validazione in ${configFilePath}: l'agent '${agentName}' come oggetto deve avere un campo 'command' di tipo stringa`,
+            );
+          }
+          if ('workingDirectory' in detailedConfig && typeof detailedConfig['workingDirectory'] !== 'string') {
+            throw new Error(
+              `Errore di validazione in ${configFilePath}: il campo 'workingDirectory' dell'agent '${agentName}' deve essere una stringa`,
+            );
+          }
+          continue;
+        }
+        throw new Error(
+          `Errore di validazione in ${configFilePath}: il valore dell'agent '${agentName}' deve essere una stringa (template comando) o un oggetto con campo 'command', ricevuto ${typeof agentValue}`,
+        );
       }
+    }
+
+    // Valida workingDirectory
+    if ('workingDirectory' in configObject && configObject['workingDirectory'] !== null && typeof configObject['workingDirectory'] !== 'string') {
+      throw new Error(
+        `Errore di validazione in ${configFilePath}: il campo 'workingDirectory' deve essere una stringa o null, ricevuto ${typeof configObject['workingDirectory']}`,
+      );
     }
 
     // Valida columns
@@ -236,6 +259,9 @@ export class ConfigService {
       columns: 'columns' in configObject
         ? (configObject['columns'] as ColumnConfiguration[])
         : [...DEFAULT_CONFIGURATION.columns],
+      workingDirectory: 'workingDirectory' in configObject
+        ? (configObject['workingDirectory'] as string | null)
+        : DEFAULT_CONFIGURATION.workingDirectory,
     };
 
     return validatedConfiguration;

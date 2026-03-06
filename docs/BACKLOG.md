@@ -841,10 +841,12 @@ I want configurare la directory di lavoro (cwd) in cui i processi agent vengono 
 so that gli agent operino nella directory corretta del progetto e possano accedere ai file sorgente.
 
 **Acceptance Criteria**
-- [ ] Il file di configurazione supporta un campo opzionale `workingDirectory` (stringa, percorso assoluto o relativo alla root del progetto)
-- [ ] Se `workingDirectory` e specificato, il processo agent viene avviato con `cwd` impostato a quel percorso; se non specificato, il `cwd` e la directory in cui si trova `.kanban-reloaded/`
-- [ ] Se il percorso specificato non esiste o non e una directory, il sistema logga un warning e usa il percorso di default
-- [ ] Ogni agent nella mappa `agents` puo avere un proprio `workingDirectory` che sovrascrive quello globale
+- [x] Il file di configurazione supporta un campo opzionale `workingDirectory` (stringa, percorso assoluto o relativo alla root del progetto)
+- [x] Se `workingDirectory` e specificato, il processo agent viene avviato con `cwd` impostato a quel percorso; se non specificato, il `cwd` e la directory in cui si trova `.kanban-reloaded/`
+- [x] Se il percorso specificato non esiste o non e una directory, il sistema logga un warning e usa il percorso di default
+- [x] Ogni agent nella mappa `agents` puo avere un proprio `workingDirectory` che sovrascrive quello globale
+
+**Status: DONE**
 
 ---
 

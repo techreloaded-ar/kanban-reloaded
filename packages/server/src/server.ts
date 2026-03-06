@@ -67,6 +67,8 @@ export async function createServer(
     projectConfiguration.agentCommand,
     server.log,
     projectConfiguration.agents,
+    projectDirectoryPath,
+    projectConfiguration.workingDirectory,
   );
   agentLauncher.setTaskService(taskService);
   agentLauncher.setWebSocketBroadcaster(websocketBroadcaster);

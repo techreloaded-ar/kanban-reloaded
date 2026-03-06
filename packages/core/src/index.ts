@@ -17,6 +17,7 @@ export type {
   UpdateSubtaskInput,
   SubtaskProgress,
   AgentConfiguration,
+  AgentDetailedConfiguration,
   ColumnConfiguration,
   ProjectConfiguration,
   ConfigurationFileError,

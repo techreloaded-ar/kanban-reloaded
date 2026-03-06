@@ -7,6 +7,7 @@ interface UpdateConfigurationRequestBody {
   agents?: Record<string, unknown>;
   serverPort?: number;
   columns?: unknown[];
+  workingDirectory?: string | null;
 }
 
 /**
@@ -93,14 +94,29 @@ export function registerConfigRoutes(
           });
         }
 
-        for (const [agentName, agentCommandTemplate] of Object.entries(
+        for (const [agentName, agentValue] of Object.entries(
           body.agents,
         )) {
-          if (typeof agentCommandTemplate !== 'string') {
-            return reply.status(400).send({
-              error: `Il valore dell'agent '${agentName}' in 'agents' deve essere una stringa (template comando), ricevuto ${typeof agentCommandTemplate}`,
-            });
+          if (typeof agentValue === 'string') {
+            continue;
           }
+          if (typeof agentValue === 'object' && agentValue !== null && !Array.isArray(agentValue)) {
+            const detailedConfig = agentValue as Record<string, unknown>;
+            if (typeof detailedConfig['command'] !== 'string') {
+              return reply.status(400).send({
+                error: `L'agent '${agentName}' come oggetto deve avere un campo 'command' di tipo stringa`,
+              });
+            }
+            if ('workingDirectory' in detailedConfig && typeof detailedConfig['workingDirectory'] !== 'string') {
+              return reply.status(400).send({
+                error: `Il campo 'workingDirectory' dell'agent '${agentName}' deve essere una stringa`,
+              });
+            }
+            continue;
+          }
+          return reply.status(400).send({
+            error: `Il valore dell'agent '${agentName}' deve essere una stringa o un oggetto con campo 'command', ricevuto ${typeof agentValue}`,
+          });
         }
       }
 
@@ -136,6 +152,18 @@ export function registerConfigRoutes(
         }
       }
 
+      // Validazione di workingDirectory: deve essere una stringa o null
+      if (
+        body.workingDirectory !== undefined &&
+        body.workingDirectory !== null &&
+        typeof body.workingDirectory !== 'string'
+      ) {
+        return reply.status(400).send({
+          error:
+            "Il campo 'workingDirectory' deve essere una stringa o null",
+        });
+      }
+
       // Costruisci l'oggetto di aggiornamento parziale con solo i campi forniti
       const updatedFields: Partial<ProjectConfiguration> = {};
 
@@ -143,13 +171,16 @@ export function registerConfigRoutes(
         updatedFields.agentCommand = body.agentCommand;
       }
       if (body.agents !== undefined) {
-        updatedFields.agents = body.agents as Record<string, string>;
+        updatedFields.agents = body.agents as ProjectConfiguration['agents'];
       }
       if (body.serverPort !== undefined) {
         updatedFields.serverPort = body.serverPort;
       }
       if (body.columns !== undefined) {
         updatedFields.columns = body.columns as ColumnConfiguration[];
+      }
+      if (body.workingDirectory !== undefined) {
+        updatedFields.workingDirectory = body.workingDirectory;
       }
 
       try {

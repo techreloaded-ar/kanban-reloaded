@@ -1,6 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import type { Task, TaskService, AgentConfiguration } from '@kanban-reloaded/core';
+import type { Task, TaskService, AgentConfiguration, AgentDetailedConfiguration } from '@kanban-reloaded/core';
 import type { WebSocketBroadcaster, WebSocketEventPayload } from '../websocket/websocketBroadcaster.js';
 
 /**
@@ -59,6 +61,8 @@ export class AgentLauncher {
   private readonly logger: AgentLauncherLogger;
   private readonly activeAgentProcesses: Map<string, ChildProcess> = new Map();
   private readonly agentStartTimestamps: Map<string, number> = new Map();
+  private readonly projectDirectoryPath: string;
+  private readonly globalWorkingDirectory: string | null;
 
   /**
    * Dipendenze iniettate dopo la costruzione, poiche il server le crea
@@ -71,10 +75,14 @@ export class AgentLauncher {
     defaultAgentCommand: string | null,
     logger: AgentLauncherLogger,
     agentConfigurationMap: AgentConfiguration = {},
+    projectDirectoryPath: string = process.cwd(),
+    globalWorkingDirectory: string | null = null,
   ) {
     this.defaultAgentCommand = defaultAgentCommand;
     this.agentConfigurationMap = agentConfigurationMap;
     this.logger = logger;
+    this.projectDirectoryPath = projectDirectoryPath;
+    this.globalWorkingDirectory = globalWorkingDirectory;
   }
 
   /**
@@ -107,9 +115,8 @@ export class AgentLauncher {
    * del task vengono sanitizzati per prevenire command injection.
    */
   launchForTask(task: Task): AgentLaunchResult {
-    // Risolvi il comando agent: usa quello specifico del task se disponibile,
-    // altrimenti usa il comando di default (AC-3: log warning se agent non trovato)
-    const resolvedAgentCommand = this.resolveAgentCommand(task);
+    // Risolvi il comando agent e la directory di lavoro
+    const { command: resolvedAgentCommand, workingDirectory: resolvedWorkingDirectory } = this.resolveAgentCommandAndWorkingDirectory(task);
 
     if (!resolvedAgentCommand || resolvedAgentCommand.trim().length === 0) {
       this.logger.info(
@@ -149,6 +156,7 @@ export class AgentLauncher {
         shell: false,
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: false,
+        cwd: resolvedWorkingDirectory,
       });
 
       if (childProcess.pid === undefined) {
@@ -270,22 +278,83 @@ export class AgentLauncher {
   }
 
   /**
-   * Risolve il comando agent da usare per un task.
+   * Estrae il template comando da un valore nella mappa agents.
+   * Il valore puo essere una stringa semplice o un oggetto AgentDetailedConfiguration.
+   */
+  private extractCommandFromAgentValue(agentValue: string | AgentDetailedConfiguration): string {
+    return typeof agentValue === 'string' ? agentValue : agentValue.command;
+  }
+
+  /**
+   * Estrae il workingDirectory da un valore nella mappa agents.
+   * Restituisce undefined se non specificato o se il valore e una stringa semplice.
+   */
+  private extractWorkingDirectoryFromAgentValue(agentValue: string | AgentDetailedConfiguration): string | undefined {
+    if (typeof agentValue === 'string') return undefined;
+    return agentValue.workingDirectory;
+  }
+
+  /**
+   * Risolve la directory di lavoro effettiva per il processo agent.
    *
-   * Logica di risoluzione (US-016):
+   * Ordine di priorita:
+   * 1. workingDirectory specifico dell'agent (se oggetto con campo workingDirectory)
+   * 2. workingDirectory globale dalla configurazione
+   * 3. La directory del progetto (.kanban-reloaded/ padre)
+   *
+   * Se il percorso e relativo, viene risolto rispetto alla directory del progetto.
+   * Se il percorso non esiste o non e una directory, logga un warning e usa il default.
+   */
+  private resolveWorkingDirectory(agentSpecificWorkingDirectory?: string): string {
+    const candidatePath = agentSpecificWorkingDirectory ?? this.globalWorkingDirectory;
+
+    if (!candidatePath) {
+      return this.projectDirectoryPath;
+    }
+
+    const absolutePath = path.isAbsolute(candidatePath)
+      ? candidatePath
+      : path.resolve(this.projectDirectoryPath, candidatePath);
+
+    try {
+      if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isDirectory()) {
+        return absolutePath;
+      }
+    } catch {
+      // fs errors — fallthrough to warning
+    }
+
+    this.logger.warn(
+      `La directory di lavoro '${candidatePath}' (risolta in '${absolutePath}') non esiste o non e una directory. ` +
+      `Uso della directory di default: ${this.projectDirectoryPath}`,
+    );
+    return this.projectDirectoryPath;
+  }
+
+  /**
+   * Risolve il comando agent e la directory di lavoro per un task.
+   *
+   * Logica di risoluzione (US-016 + US-042):
    * 1. Se il task ha un campo `agent` specificato, cerca nella mappa `agents` del config
    * 2. Se il nome agent non corrisponde a nessuna configurazione, usa il comando di default
    *    e logga un warning (AC-3)
    * 3. Se il task non ha un campo `agent`, usa il comando di default
+   * 4. La directory di lavoro segue la priorita: agent specifico > globale > progetto
    */
-  private resolveAgentCommand(task: Task): string | null {
+  private resolveAgentCommandAndWorkingDirectory(task: Task): { command: string | null; workingDirectory: string } {
+    let agentSpecificWorkingDirectory: string | undefined;
+
     if (task.agent) {
-      const agentSpecificCommand = this.agentConfigurationMap[task.agent];
-      if (agentSpecificCommand) {
+      const agentValue = this.agentConfigurationMap[task.agent];
+      if (agentValue) {
         this.logger.info(
           `Task ${task.displayId}: uso agent '${task.agent}' con comando specifico dalla configurazione.`,
         );
-        return agentSpecificCommand;
+        agentSpecificWorkingDirectory = this.extractWorkingDirectoryFromAgentValue(agentValue);
+        return {
+          command: this.extractCommandFromAgentValue(agentValue),
+          workingDirectory: this.resolveWorkingDirectory(agentSpecificWorkingDirectory),
+        };
       }
 
       // AC-3: agent specificato ma non trovato nella configurazione -> warning + fallback al default
@@ -295,7 +364,10 @@ export class AgentLauncher {
       );
     }
 
-    return this.defaultAgentCommand;
+    return {
+      command: this.defaultAgentCommand,
+      workingDirectory: this.resolveWorkingDirectory(),
+    };
   }
 
   /**

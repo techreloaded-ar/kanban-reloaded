@@ -64,6 +64,7 @@ export async function createServer(
   const agentLauncher = new AgentLauncher(
     projectConfiguration.agentCommand,
     server.log,
+    projectConfiguration.agents,
   );
   agentLauncher.setTaskService(taskService);
   agentLauncher.setWebSocketBroadcaster(websocketBroadcaster);

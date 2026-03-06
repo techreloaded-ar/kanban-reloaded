@@ -56,6 +56,7 @@ export class TaskService {
       status: targetStatus,
       agentRunning: false,
       agentLog: null,
+      agent: input.agent ?? null,
       createdAt: new Date().toISOString(),
       updatedAt: null,
       executionTime: null,
@@ -133,6 +134,7 @@ export class TaskService {
     if (input.agentRunning !== undefined) fieldsToUpdate.agentRunning = input.agentRunning;
     if (input.agentLog !== undefined) fieldsToUpdate.agentLog = input.agentLog;
     if (input.executionTime !== undefined) fieldsToUpdate.executionTime = input.executionTime;
+    if (input.agent !== undefined) fieldsToUpdate.agent = input.agent;
     if (input.position !== undefined) fieldsToUpdate.position = input.position;
 
     this.database

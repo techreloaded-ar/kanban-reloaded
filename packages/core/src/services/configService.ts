@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { KANBAN_DIRECTORY_NAME, CONFIG_FILENAME } from '../storage/constants.js';
-import type { ProjectConfiguration, ColumnConfiguration, ConfigurationFileError } from '../models/types.js';
+import type { ProjectConfiguration, ColumnConfiguration, AgentConfiguration, ConfigurationFileError } from '../models/types.js';
 
 const DEFAULT_COLUMNS: ColumnConfiguration[] = [
   { id: 'backlog', name: 'Backlog', color: '#3498DB' },
@@ -11,6 +11,7 @@ const DEFAULT_COLUMNS: ColumnConfiguration[] = [
 
 const DEFAULT_CONFIGURATION: ProjectConfiguration = {
   agentCommand: null,
+  agents: {},
   serverPort: 3000,
   columns: DEFAULT_COLUMNS,
 };
@@ -186,6 +187,23 @@ export class ConfigService {
       );
     }
 
+    // Valida agents
+    if ('agents' in configObject) {
+      if (typeof configObject['agents'] !== 'object' || configObject['agents'] === null || Array.isArray(configObject['agents'])) {
+        throw new Error(
+          `Errore di validazione in ${configFilePath}: il campo 'agents' deve essere un oggetto (mappa nome agent -> template comando)`,
+        );
+      }
+      const agentsMap = configObject['agents'] as Record<string, unknown>;
+      for (const [agentName, agentCommandTemplate] of Object.entries(agentsMap)) {
+        if (typeof agentCommandTemplate !== 'string') {
+          throw new Error(
+            `Errore di validazione in ${configFilePath}: il valore dell'agent '${agentName}' in 'agents' deve essere una stringa (template comando), ricevuto ${typeof agentCommandTemplate}`,
+          );
+        }
+      }
+    }
+
     // Valida columns
     if ('columns' in configObject) {
       if (!Array.isArray(configObject['columns'])) {
@@ -209,6 +227,9 @@ export class ConfigService {
       agentCommand: 'agentCommand' in configObject
         ? (configObject['agentCommand'] as string | null)
         : DEFAULT_CONFIGURATION.agentCommand,
+      agents: 'agents' in configObject
+        ? (configObject['agents'] as AgentConfiguration)
+        : { ...DEFAULT_CONFIGURATION.agents },
       serverPort: 'serverPort' in configObject
         ? (configObject['serverPort'] as number)
         : DEFAULT_CONFIGURATION.serverPort,

@@ -10,6 +10,7 @@ export const tasksTable = sqliteTable('tasks', {
   status: text('status', { enum: ['backlog', 'in-progress', 'done'] }).notNull().default('backlog'),
   agentRunning: integer('agent_running', { mode: 'boolean' }).notNull().default(false),
   agentLog: text('agent_log'),
+  agent: text('agent'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at'),
   executionTime: real('execution_time'),

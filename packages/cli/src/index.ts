@@ -263,6 +263,7 @@ program
           const agentLauncher = new AgentLauncher(
             configuration.agentCommand,
             consoleLogger,
+            configuration.agents,
           );
           agentLauncher.setTaskService(taskService);
 

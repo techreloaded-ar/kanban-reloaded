@@ -28,6 +28,7 @@ function createTestTask(overrides?: Partial<Task>): Task {
     status: 'in-progress',
     agentRunning: false,
     agentLog: null,
+    agent: null,
     createdAt: '2026-03-05T10:00:00.000Z',
     updatedAt: null,
     executionTime: null,
@@ -311,6 +312,73 @@ describe('AgentLauncher', () => {
       // Nota: stopAllAgents invia SIGTERM ma il cleanup avviene async nel 'close' handler
       // Verifichiamo che il segnale sia stato inviato (il logger.info viene chiamato)
       expect(mockLogger.info).toHaveBeenCalled();
+    });
+  });
+
+  describe('supporto agent multipli (US-016)', () => {
+    it('usa il comando specifico quando il task ha un agent configurato nella mappa', () => {
+      const agentsMap = {
+        feature: 'node -e "console.log(\'feature agent\')"',
+        bugfix: 'node -e "console.log(\'bugfix agent\')"',
+      };
+      const launcher = new AgentLauncher(
+        'node -e "console.log(\'default agent\')"',
+        mockLogger,
+        agentsMap,
+      );
+      const task = createTestTask({ agent: 'feature' });
+
+      const result = launcher.launchForTask(task);
+
+      expect(result.launched).toBe(true);
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining("uso agent 'feature'"),
+      );
+
+      launcher.stopAllAgents();
+    });
+
+    it('usa il comando di default e logga warning quando il nome agent non e nella mappa (AC-3)', () => {
+      const agentsMap = {
+        feature: 'node -e "console.log(\'feature agent\')"',
+      };
+      const launcher = new AgentLauncher(
+        'node -e "console.log(\'default agent\')"',
+        mockLogger,
+        agentsMap,
+      );
+      const task = createTestTask({ agent: 'inesistente' });
+
+      const result = launcher.launchForTask(task);
+
+      expect(result.launched).toBe(true);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("agent 'inesistente' non trovato"),
+      );
+
+      launcher.stopAllAgents();
+    });
+
+    it('usa il comando di default quando il task non ha un agent specificato', () => {
+      const agentsMap = {
+        feature: 'node -e "console.log(\'feature agent\')"',
+      };
+      const launcher = new AgentLauncher(
+        'node -e "console.log(\'default agent\')"',
+        mockLogger,
+        agentsMap,
+      );
+      const task = createTestTask({ agent: null });
+
+      const result = launcher.launchForTask(task);
+
+      expect(result.launched).toBe(true);
+      // Non deve loggare warning per agent non trovato
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('non trovato'),
+      );
+
+      launcher.stopAllAgents();
     });
   });
 });

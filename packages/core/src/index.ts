@@ -10,6 +10,7 @@ export type {
   TaskPriority,
   CreateTaskInput,
   UpdateTaskInput,
+  AgentConfiguration,
   ColumnConfiguration,
   ProjectConfiguration,
   ConfigurationFileError,

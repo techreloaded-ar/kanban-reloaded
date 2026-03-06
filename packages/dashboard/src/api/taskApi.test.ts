@@ -15,6 +15,7 @@ function createMockTask(overrides: Partial<Task> = {}): Task {
     status: 'backlog',
     agentRunning: false,
     agentLog: null,
+    agent: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     executionTime: null,
     position: 0,

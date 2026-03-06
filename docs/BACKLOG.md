@@ -411,7 +411,7 @@ so that posso usare qualsiasi agent compatibile (Claude Code, Cursor, Aider, scr
 
 ---
 
-#### US-016: Supporto per agent multipli
+#### US-016: Supporto per agent multipli — DONE
 
 **Epic:** EP-004 | **Priority:** MEDIUM | **Story Points:** 3
 
@@ -421,9 +421,9 @@ I want poter configurare agent diversi per tipologie di task differenti (es. un 
 so that il team possa usare lo strumento piu adatto per ogni tipo di attivita.
 
 **Acceptance Criteria**
-- [ ] Il file di configurazione supporta una mappa `agents` con chiave = nome agent e valore = template comando (es. `{"feature": "claude --prompt ...", "bugfix": "aider --message ..."}`)
-- [ ] Ogni task puo avere un campo opzionale `agent` che specifica quale agent utilizzare; se non specificato, viene usato l'agent di default
-- [ ] Se il nome agent specificato nel task non corrisponde a nessuna configurazione, il sistema utilizza l'agent di default e logga un warning
+- [x] Il file di configurazione supporta una mappa `agents` con chiave = nome agent e valore = template comando (es. `{"feature": "claude --prompt ...", "bugfix": "aider --message ..."}`)
+- [x] Ogni task puo avere un campo opzionale `agent` che specifica quale agent utilizzare; se non specificato, viene usato l'agent di default
+- [x] Se il nome agent specificato nel task non corrisponde a nessuna configurazione, il sistema utilizza l'agent di default e logga un warning
 
 ---
 

@@ -16,6 +16,7 @@ const CREATE_TASKS_TABLE_SQL = `
     status TEXT NOT NULL DEFAULT 'backlog' CHECK(status IN ('backlog', 'in-progress', 'done')),
     agent_running INTEGER NOT NULL DEFAULT 0,
     agent_log TEXT,
+    agent TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT,
     execution_time REAL,
@@ -31,6 +32,23 @@ const CREATE_CONFIG_TABLE_SQL = `
 `;
 
 export type DatabaseInstance = BetterSQLite3Database<typeof schema>;
+
+/**
+ * Applica le migrazioni incrementali al database esistente.
+ * Ogni migrazione verifica prima se la colonna esiste gia, per essere idempotente.
+ */
+function applyMigrations(connection: Database.Database): void {
+  // Leggi le colonne attuali della tabella tasks
+  const existingColumns = connection
+    .prepare("PRAGMA table_info('tasks')")
+    .all() as Array<{ name: string }>;
+  const columnNames = new Set(existingColumns.map((column) => column.name));
+
+  // Migrazione US-016: aggiunge colonna 'agent' per supporto agent multipli
+  if (!columnNames.has('agent')) {
+    connection.exec('ALTER TABLE tasks ADD COLUMN agent TEXT');
+  }
+}
 
 /**
  * Risultato dell'inizializzazione del database.
@@ -91,6 +109,9 @@ export function initializeDatabase(projectDirectoryPath: string): DatabaseInitia
   // Crea le tabelle se non esistono (non sovrascrive dati esistenti)
   sqliteConnection.exec(CREATE_TASKS_TABLE_SQL);
   sqliteConnection.exec(CREATE_CONFIG_TABLE_SQL);
+
+  // Migrazione: aggiunge la colonna 'agent' se non esiste (US-016: supporto agent multipli)
+  applyMigrations(sqliteConnection);
 
   // Crea l'istanza Drizzle ORM
   const database = drizzle(sqliteConnection, { schema });

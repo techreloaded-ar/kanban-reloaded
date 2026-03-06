@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import type { Task, TaskService } from '@kanban-reloaded/core';
+import type { Task, TaskService, AgentConfiguration } from '@kanban-reloaded/core';
 import type { WebSocketBroadcaster, WebSocketEventPayload } from '../websocket/websocketBroadcaster.js';
 
 /**
@@ -54,7 +54,8 @@ export function sanitizeShellValue(unsafeValue: string): string {
  * - Terminare i processi su richiesta (SIGTERM)
  */
 export class AgentLauncher {
-  private readonly agentCommand: string | null;
+  private readonly defaultAgentCommand: string | null;
+  private readonly agentConfigurationMap: AgentConfiguration;
   private readonly logger: AgentLauncherLogger;
   private readonly activeAgentProcesses: Map<string, ChildProcess> = new Map();
   private readonly agentStartTimestamps: Map<string, number> = new Map();
@@ -66,8 +67,13 @@ export class AgentLauncher {
   private taskService: TaskService | null = null;
   private websocketBroadcaster: WebSocketBroadcaster | null = null;
 
-  constructor(agentCommand: string | null, logger: AgentLauncherLogger) {
-    this.agentCommand = agentCommand;
+  constructor(
+    defaultAgentCommand: string | null,
+    logger: AgentLauncherLogger,
+    agentConfigurationMap: AgentConfiguration = {},
+  ) {
+    this.defaultAgentCommand = defaultAgentCommand;
+    this.agentConfigurationMap = agentConfigurationMap;
     this.logger = logger;
   }
 
@@ -101,7 +107,11 @@ export class AgentLauncher {
    * del task vengono sanitizzati per prevenire command injection.
    */
   launchForTask(task: Task): AgentLaunchResult {
-    if (!this.agentCommand || this.agentCommand.trim().length === 0) {
+    // Risolvi il comando agent: usa quello specifico del task se disponibile,
+    // altrimenti usa il comando di default (AC-3: log warning se agent non trovato)
+    const resolvedAgentCommand = this.resolveAgentCommand(task);
+
+    if (!resolvedAgentCommand || resolvedAgentCommand.trim().length === 0) {
       this.logger.info(
         `Nessun agent configurato per il task ${task.displayId}. Il task procede senza agent.`,
       );
@@ -118,7 +128,7 @@ export class AgentLauncher {
 
     // Interpola i placeholder nel comando con valori sanitizzati
     const interpolatedCommand = this.interpolateCommandTemplate(
-      this.agentCommand,
+      resolvedAgentCommand,
       task,
     );
 
@@ -257,6 +267,35 @@ export class AgentLauncher {
     for (const taskId of activeTaskIds) {
       this.stopAgent(taskId);
     }
+  }
+
+  /**
+   * Risolve il comando agent da usare per un task.
+   *
+   * Logica di risoluzione (US-016):
+   * 1. Se il task ha un campo `agent` specificato, cerca nella mappa `agents` del config
+   * 2. Se il nome agent non corrisponde a nessuna configurazione, usa il comando di default
+   *    e logga un warning (AC-3)
+   * 3. Se il task non ha un campo `agent`, usa il comando di default
+   */
+  private resolveAgentCommand(task: Task): string | null {
+    if (task.agent) {
+      const agentSpecificCommand = this.agentConfigurationMap[task.agent];
+      if (agentSpecificCommand) {
+        this.logger.info(
+          `Task ${task.displayId}: uso agent '${task.agent}' con comando specifico dalla configurazione.`,
+        );
+        return agentSpecificCommand;
+      }
+
+      // AC-3: agent specificato ma non trovato nella configurazione -> warning + fallback al default
+      this.logger.warn(
+        `Task ${task.displayId}: agent '${task.agent}' non trovato nella configurazione agents. ` +
+        `Uso del comando agent di default.`,
+      );
+    }
+
+    return this.defaultAgentCommand;
   }
 
   /**

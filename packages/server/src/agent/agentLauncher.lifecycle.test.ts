@@ -362,7 +362,7 @@ describe('AgentLauncher — ciclo di vita del processo', () => {
       // Deve avere broadcast sia agent:completed che task:updated
       const broadcastCalls = (mockBroadcaster.broadcastEvent as ReturnType<typeof vi.fn>).mock.calls;
       const eventTypes = broadcastCalls.map(
-        (call: [{ type: string }]) => call[0].type,
+        (call: Array<{ type: string }>) => call[0].type,
       );
 
       expect(eventTypes).toContain('agent:started');
